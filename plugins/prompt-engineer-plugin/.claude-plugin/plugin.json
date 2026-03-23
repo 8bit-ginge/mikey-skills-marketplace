@@ -1,0 +1,5 @@
+{
+  "name": "prompt-engineer-plugin",
+  "description": "Prompt engineering assistant grounded in the DAIR Prompt Engineering Guide",
+  "version": "9.0.0"
+}
