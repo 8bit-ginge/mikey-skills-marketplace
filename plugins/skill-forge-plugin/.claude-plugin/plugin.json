@@ -1,0 +1,8 @@
+{
+  "name": "skill-forge",
+  "description": "End-to-end skill development plugin for building Claude skills through a guided four-phase pipeline.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Mikey East"
+  }
+}

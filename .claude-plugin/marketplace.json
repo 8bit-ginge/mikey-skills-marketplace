@@ -20,6 +20,12 @@
       "source": "./plugins/interview-research-plugin",
       "description": "Adaptive discovery interview for exploring ideas through structured conversation",
       "version": "2.0.0"
+    },
+    {
+      "name": "skill-forge-plugin",
+      "source": "./plugins/skill-forge-plugin",
+      "description": "End-to-end skill development plugin — discovery, creation, diagnostic, and validation as a four-phase pipeline with typed handoff contracts",
+      "version": "1.0.0"
     }
   ]
 }
