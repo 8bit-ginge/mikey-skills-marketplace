@@ -2,11 +2,6 @@
 
 Skills and plugins for Claude Code and Claude Desktop.
 
-## Skills
-
-| Skill | Version | Description |
-|-------|---------|-------------|
-
 ## Plugins
 
 | Plugin | Version | Description |
