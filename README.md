@@ -6,9 +6,9 @@ Skills and plugins for Claude Code and Claude Desktop.
 
 | Name | Version | Description |
 |------|---------|-------------|
-| interview-research-plugin | 2.0.0 | Adaptive discovery interview for exploring ideas through structured conversation |
+| interview-research-plugin | 1.0.0 | Adaptive discovery interview for exploring ideas through structured conversation |
 | marketplace-manager | 0.2.1 | Distribution and maintenance plugin for Claude skills and plugins — validate, scaffold, package, and publish to the GitHub marketplace. |
-| prompt-engineer-plugin | 9.0.0 | Prompt engineering assistant grounded in the DAIR Prompt Engineering Guide |
+| prompt-engineer-plugin | 1.0.0 | Prompt engineering assistant grounded in the DAIR Prompt Engineering Guide |
 | skill-forge-plugin | 1.0.0 | End-to-end skill development plugin — discovery, creation, diagnostic, and validation as a four-phase pipeline with typed handoff contracts |
 
 ---

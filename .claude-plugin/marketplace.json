@@ -13,13 +13,13 @@
       "name": "prompt-engineer-plugin",
       "source": "./plugins/prompt-engineer-plugin",
       "description": "Prompt engineering assistant grounded in the DAIR Prompt Engineering Guide",
-      "version": "9.0.0"
+      "version": "1.0.0"
     },
     {
       "name": "interview-research-plugin",
       "source": "./plugins/interview-research-plugin",
       "description": "Adaptive discovery interview for exploring ideas through structured conversation",
-      "version": "2.0.0"
+      "version": "1.0.0"
     },
     {
       "name": "skill-forge-plugin",
