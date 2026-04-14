@@ -126,7 +126,22 @@ A Claude Code plugin that owns the **distribution and maintenance layer** of the
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+### Working directory before `/marketplace-manager:publish`
+
+Always `cd` into the target plugin or skill directory before invoking the publish command (including `--dry-run`). This ensures Claude Code loads the artifact's own `CLAUDE.md` and `.planning/` context, and that relative paths resolve against the thing you are actually publishing.
+
+Example:
+
+```bash
+cd /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<plugin-name>
+# or for skills:
+cd /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<skill-name>
+
+# then:
+/marketplace-manager:publish <name> [--dry-run]
+```
+
+Verify with `pwd` before running. If you are not in the artifact's directory, stop and `cd` first.
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->

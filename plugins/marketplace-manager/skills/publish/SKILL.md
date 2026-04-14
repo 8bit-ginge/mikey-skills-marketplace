@@ -58,7 +58,7 @@ Each write stage (4–8) has both an **EXECUTE behaviour** block and a **DRY-RUN
 5. **Write Version Bump** — update version field in SKILL.md frontmatter (skills) or plugin.json (plugins)
 6. **Write CHANGELOG Entry** — insert new entry at top of CHANGELOG.md in container directory
 7. **Package** — ZIP for skills (cd into claude-code-skill/ first to ensure SKILL.md is at root); rsync for plugins (with pre-rsync .git cleanup)
-8. **Copy to Marketplace + Update Index** — copy packaged artifact; update marketplace.json for plugins only; regenerate README.md for all artifacts
+8. **Copy to Marketplace + Update Index** — copy packaged artifact; update marketplace.json for plugins only; update README version line for plugins; regenerate README.md for all artifacts (skip-if-unchanged guard on index README). After Stage 7 completes, display a structured change summary of README modifications before proceeding to Stage 8
 9. **Git Commit and Push** — stage all changes, show pre-push confirmation gate (y/N) with commit preview and staged file count; on user confirm: commit and push to origin/main; on push failure: attempt one auto pull-rebase recovery then retry (per D-10 two-tier system); on success: print verification nudge with GitHub URL (per D-13)
 
 ## Output Format

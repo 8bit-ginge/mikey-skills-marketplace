@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.0 — 2026-04-14
+
+Auto-update marketplace index README version on publish (Phase 15 feature)
+
 All notable changes to the Marketplace Manager plugin.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers track `plugin.json`.
@@ -8,9 +12,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 
 Rename plugin to marketplace-manager, fix ecosystem paths, update command prefix
 
-## [v1.1] - 2026-04-13
+## Milestone: v1.1 — Zero-Intervention Publish Pipeline with Guardrails (2026-04-13)
 
-**Zero-Intervention Publish Pipeline with Guardrails** — 7 phases, 10 plans, 15 requirements satisfied.
+7 phases, 10 plans, 15 requirements satisfied. Not a semver release — milestone label for internal tracking.
 
 ### Added
 
@@ -43,9 +47,9 @@ Rename plugin to marketplace-manager, fix ecosystem paths, update command prefix
 - publish-rules.md verb-phrase table and stage block text consistency
 - verify-dry-run-no-writes.sh missing `set -e` and `-o pipefail` shell safety flags
 
-## [v1.0] - 2026-04-10
+## Milestone: v1.0 — MVP (2026-04-10)
 
-**MVP** — 6 phases, 12 plans. Plugin self-published to marketplace as proof the pipeline works end-to-end.
+6 phases, 12 plans. Plugin self-published to marketplace as proof the pipeline works end-to-end. Not a semver release — milestone label for internal tracking.
 
 ### Added
 
@@ -75,5 +79,3 @@ Rename plugin to marketplace-manager, fix ecosystem paths, update command prefix
 
 - Initial plugin structure with validate, scaffold, status, and publish commands
 
-[v1.1]: https://github.com/8bit-ginge/marketplace-manager/compare/v1.0...v1.1
-[v1.0]: https://github.com/8bit-ginge/marketplace-manager/releases/tag/v1.0
