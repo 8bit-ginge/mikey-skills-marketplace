@@ -479,11 +479,18 @@ New entry format (Keep-a-Changelog variant observed in ecosystem):
 
 ### Placement procedure
 
+`changelog_path` is derived from the already-located `container_dir` (see "Locate the container directory" above) so the ecosystem path-template drift class of bug (PIPE-05) cannot recur.
+
 ```python
-changelog_path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/claude-<type>s/<name>/CHANGELOG.md'
+# changelog_path is derived from container_dir located earlier in this stage
+# (see "Locate the container directory"). This avoids hard-coded ecosystem path
+# templates that drift when the repo layout changes (the PIPE-05 failure class).
+from pathlib import Path
+
+changelog_path = Path(container_dir) / 'CHANGELOG.md'
 new_version = '<new-version>'
-today = '<YYYY-MM-DD>'
-summary = '<summary>'
+today = '<YYYY-MM-DD>'       # already computed earlier in this stage
+summary = '<summary>'         # release summary from Stage 3
 
 with open(changelog_path) as f:
     content = f.read()
@@ -498,7 +505,7 @@ new_content = re.sub(
     r'\g<1>' + new_entry,
     content,
     count=1,
-    flags=re.MULTILINE
+    flags=re.MULTILINE,
 )
 
 if new_content == content:
@@ -509,6 +516,44 @@ if new_content == content:
 
 with open(changelog_path, 'w') as f:
     f.write(new_content)
+
+# --- Post-write assertion (PIPE-06) ---------------------------------------
+# Re-read the source CHANGELOG and confirm the new heading landed.
+# Abort BEFORE Stage 6 if not, so rsync cannot ship a stale CHANGELOG.
+with open(changelog_path) as f:
+    written = f.read()
+
+expected_heading = f'## v{new_version} \u2014 {today}'
+
+# Collect first ~5 non-blank lines that appear AFTER the '# Changelog' header.
+post_header = re.split(r'^# Changelog\n+', written, maxsplit=1, flags=re.MULTILINE)
+first_nonblank: list[str] = []
+if len(post_header) == 2:
+    for line in post_header[1].splitlines():
+        if line.strip():
+            first_nonblank.append(line)
+        if len(first_nonblank) >= 5:
+            break
+
+if expected_heading not in first_nonblank:
+    import sys
+    sys.stderr.write('\n')
+    sys.stderr.write('❌ Stage 5 post-write assertion FAILED\n')
+    sys.stderr.write(f'   Expected path:    {changelog_path}\n')
+    sys.stderr.write(f'   Expected heading: {expected_heading}\n')
+    sys.stderr.write(f'   Actual first lines after "# Changelog":\n')
+    if first_nonblank:
+        for line in first_nonblank:
+            sys.stderr.write(f'     {line}\n')
+    else:
+        sys.stderr.write('     (none — "# Changelog" header not found in written file)\n')
+    sys.stderr.write('   Note: Stage 6 rsync was skipped. Source CHANGELOG write did not\n')
+    sys.stderr.write('         land at the expected path. Fix Stage 5 path resolution\n')
+    sys.stderr.write('         before retrying.\n')
+    raise RuntimeError(
+        'Stage 5 post-write assertion failed — source CHANGELOG missing new entry; '
+        'aborting before Stage 6.'
+    )
 ```
 
 Print this stage's output per the Output Format Contracts section. Print it now, not later:
