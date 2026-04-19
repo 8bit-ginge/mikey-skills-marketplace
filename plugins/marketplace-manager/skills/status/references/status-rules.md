@@ -14,7 +14,8 @@ Complete lookup procedures, ecosystem paths, card format templates, and status l
 8. [Card Format Template](#card-format-template)
 9. [Git Divergence Footer](#git-divergence-footer)
 10. [Summary Footer](#summary-footer)
-11. [Full Output Structure](#full-output-structure)
+11. [Brief Mode](#brief-mode)
+12. [Full Output Structure](#full-output-structure)
 
 ---
 
@@ -54,22 +55,46 @@ Two procedures — one for skills (YAML frontmatter), one for plugins (JSON).
 
 ### For Skills — YAML Frontmatter Delimiter Isolation
 
-Read version from `<skills-dir>/<name>/claude-code-skill/SKILL.md` using frontmatter delimiter isolation. This prevents false positives from body content containing YAML-like keys.
+Read version from the first SKILL.md found among the skill's candidate layouts. Try each path below in order and stop at the first match. This prevents the reader from returning `MISSING` when a skill stores its SKILL.md in a nested or flat layout rather than the canonical `claude-code-skill/` subdirectory. The frontmatter delimiter isolation approach prevents false positives from body content containing YAML-like keys.
+
+**Candidate paths (first match wins):**
+
+1. `<skills-dir>/<name>/claude-code-skill/SKILL.md` — canonical layout (interview-research, prompt-engineer)
+2. `<skills-dir>/<name>/skills/<name>/SKILL.md` — nested-bundle layout (recipe-optimiser)
+3. `<skills-dir>/<name>/SKILL.md` — flat layout (future-proofing)
+
+**Return contract:**
+
+- `<version>` — file found, frontmatter has a `version:` key
+- `NO_VERSION` — file found, frontmatter exists but no `version:` key
+- `MISSING` — no candidate path contains a SKILL.md
 
 ```bash
 python3 -c "
-import re, sys
-content = open('/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill/SKILL.md').read()
-m = re.search(r'^---\n(.*?)^---', content, re.MULTILINE | re.DOTALL)
-if m:
-    vm = re.search(r'^version:\s*(.+)$', m.group(1), re.MULTILINE)
-    print(vm.group(1).strip() if vm else 'MISSING')
+import re, os
+name = '<name>'
+base = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills'
+candidates = [
+    f'{base}/{name}/claude-code-skill/SKILL.md',
+    f'{base}/{name}/skills/{name}/SKILL.md',
+    f'{base}/{name}/SKILL.md',
+]
+for path in candidates:
+    if os.path.isfile(path):
+        content = open(path).read()
+        m = re.search(r'^---\n(.*?)^---', content, re.MULTILINE | re.DOTALL)
+        if m:
+            vm = re.search(r'^version:\s*(.+)$', m.group(1), re.MULTILINE)
+            print(vm.group(1).strip() if vm else 'NO_VERSION')
+        else:
+            print('NO_VERSION')
+        break
 else:
     print('MISSING')
 "
 ```
 
-Replace `<name>` with the actual skill name. If the file does not exist, treat as `MISSING`.
+Replace `<name>` with the actual skill name. If no candidate path contains a SKILL.md, treat as `MISSING`.
 
 ### For Plugins — JSON Parse
 
@@ -172,8 +197,8 @@ Apply these rules before any version comparison to handle format differences bet
 
 Apply in this precedence order — stop at the first matching condition:
 
-1. Skill with no `version` field in frontmatter → `⚠️ Missing version`
-2. No `SKILL.md` (for skills) or no `plugin.json` (for plugins) → `⚠️ Missing manifest`
+1. Skill Version Reading returns `NO_VERSION` (SKILL.md found but no `version:` key in frontmatter) → `⚠️ Missing version`
+2. Skill Version Reading returns `MISSING` (no SKILL.md at any candidate path) OR plugin Version Reading returns `MISSING` (no plugin.json) → `⚠️ Missing manifest`
 3. Marketplace entry does not exist (absent ZIP for skills, absent directory for plugins) → `❌ Not published`
 4. Local version equals marketplace version after normalisation → `✅ In sync`
 5. Local version higher than marketplace version after normalisation → `⚠️ Local ahead`
@@ -186,12 +211,12 @@ Apply in this precedence order — stop at the first matching condition:
 
 ```
 ### <name> (skill)
-- Local:       skills/<name>/claude-code-skill/ [v<version>]
+- Local:       skills/<name>/ [v<version>]
 - Marketplace: v<version> at mikey-skills-marketplace/skills/<name>/ | not published
 - Status:      <status label>
 ```
 
-If local version is MISSING, show `[⚠️ no version]` instead of `[v<version>]`.
+If local version is `MISSING`, show `[⚠️ missing manifest]` instead of `[v<version>]`. If local version is `NO_VERSION`, show `[⚠️ no version]` instead of `[v<version>]`.
 
 For the Marketplace row:
 - If published: `v<version> at mikey-skills-marketplace/skills/<name>/`
@@ -262,6 +287,48 @@ Plain-language labels are intentional — "uncommitted" and "unpushed" are shown
 Format: `N artifacts • N in sync • N not published`
 
 Count each status label across all artifacts and render the three counts separated by bullet separators (` • `). "In sync" counts only `✅ In sync` labels. "Not published" counts only `❌ Not published` labels. Total artifacts is the sum of all skills and plugins discovered.
+
+---
+
+## Brief Mode
+
+Brief mode is the `/marketplace-manager:status --brief` (alias `--list`) output path. It reuses the existing [Artifact Discovery](#artifact-discovery), [Version Reading](#version-reading), and [Version Normalisation](#version-normalisation) procedures to enumerate artifacts and read their local versions, then renders a flat, one-line-per-artifact inventory grouped by type. Brief mode deliberately SKIPS [Marketplace Lookup](#marketplace-lookup), [Cache Lookup](#cache-lookup), [Status Label Logic](#status-label-logic), [Card Format Template](#card-format-template), [Git Divergence Footer](#git-divergence-footer), and [Summary Footer](#summary-footer) — no remote or post-processing work is performed.
+
+### Output Format
+
+```
+## marketplace: status (brief)
+
+### Skills (N)
+- skill-name@version
+- another-skill@version
+
+### Plugins (M)
+- plugin-name@version
+- another-plugin@version
+
+Run without --brief for sync state and marketplace comparison.
+```
+
+- Top heading: `## marketplace: status (brief)` — mirrors the full-mode heading with the `(brief)` suffix to distinguish modes in terminal scrollback.
+- Group headings: `### Skills (N)` and `### Plugins (M)`, where `N` / `M` are the artifact counts in each group.
+- Each artifact renders as `- <name>@<version>`, where `<version>` comes from the Version Reading return contract. Sort alphabetically within each group.
+- Render rules by return token:
+  - If Version Reading returns `<version>` (e.g. `2`, `9`, `0.3.2`), render the line as `- <name>@<version>` using that literal string.
+  - If Version Reading returns `NO_VERSION` (SKILL.md found but no `version:` field), render the line as `- <name>@no-version`. The lowercase `@no-version` suffix signals "file is fine, version field is missing" — a lower-urgency convention drift, distinct from a missing manifest.
+  - If Version Reading returns `MISSING` (no SKILL.md at any candidate path), render the line as `- <name>@MISSING`. The uppercase `@MISSING` suffix signals "file not found" — a higher-urgency defect that likely indicates a layout drift or filesystem issue.
+  - Do not skip or mark the artifact as error — all three states are valid brief-mode outputs that map cleanly to the full-mode Status Label Logic rules 1 and 2.
+- Empty group fallback: if a group contains zero artifacts, render the heading with count `0` followed by `- (none)` on the next line, e.g. `### Plugins (0)` / `- (none)`.
+
+### Closing Hint Line
+
+Render the following single line after one blank line, verbatim (no trailing punctuation variations):
+
+```
+Run without --brief for sync state and marketplace comparison.
+```
+
+This string is grep-asserted by phase verification — do not paraphrase.
 
 ---
 

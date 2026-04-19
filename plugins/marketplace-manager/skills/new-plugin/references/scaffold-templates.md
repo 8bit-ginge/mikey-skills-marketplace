@@ -22,7 +22,7 @@ These absolute paths are the ground truth for locating plugins on this machine. 
 Use `PLUGINS_DIR` as the variable name when referencing this path in Bash operations:
 
 ```bash
-PLUGINS_DIR="/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/claude-plugins"
+PLUGINS_DIR="/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins"
 ```
 
 ---
@@ -74,7 +74,7 @@ Error: 'NAME' is not a valid kebab-case name. Use only lowercase letters, number
 Check if a plugin container already exists at the target location:
 
 ```bash
-PLUGINS_DIR="/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/claude-plugins"
+PLUGINS_DIR="/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins"
 if [ -d "$PLUGINS_DIR/$NAME" ]; then
   echo "Error: Plugin '$NAME' already exists at plugins/$NAME/"
   # STOP — do not proceed
@@ -140,13 +140,32 @@ Content (no substitution needed — CHANGELOG content is the same for any new pl
 ```markdown
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+<!--
+  User-facing changelog — one short sentence per release.
+  Syncs to the marketplace copy on every publish (Stage 6 rsync).
+  Dev history (milestones, phases, decisions) lives in CHANGELOG-internal.md.
+-->
 
 ## [Unreleased]
 
-### Added
+- Initial scaffold
+```
+
+### File 3b — `CHANGELOG-internal.md` (D-05)
+
+Path: `plugins/NAME/CHANGELOG-internal.md`
+
+Content (no substitution needed — CHANGELOG-internal content is the same for any new plugin):
+```markdown
+# Changelog (Internal)
+
+<!--
+  Dev-internal changelog — milestones, phases, decisions, refactor notes.
+  Excluded from rsync (Stage 6). Never shipped to the marketplace.
+  User-facing entries live in CHANGELOG.md.
+-->
+
+## [Unreleased]
 
 - Initial scaffold
 ```
@@ -182,6 +201,7 @@ After both guards pass, execute in this exact order:
 5. Write `plugin.json` with NAME substituted for actual plugin name
 6. Write `README.md` with NAME substituted for actual plugin name
 7. Write `CHANGELOG.md` (no substitution needed)
+8. Write `CHANGELOG-internal.md` (no substitution needed)
 
 Step 1 implicitly creates the container directory `plugins/NAME/` — no separate mkdir needed for the container.
 
@@ -197,6 +217,7 @@ Created: NAME/
     plugin.json
   README.md
   CHANGELOG.md
+  CHANGELOG-internal.md
   documentation/
   commands/
   skills/
@@ -286,13 +307,21 @@ Pass condition: `$PLUGINS_DIR/$NAME/README.md` exists as a file.
 
 Pass condition: `$PLUGINS_DIR/$NAME/CHANGELOG.md` exists as a file.
 
+### Check 9 — CHANGELOG-internal.md present (Category 4)
+
+```bash
+[ -f "$PLUGINS_DIR/$NAME/CHANGELOG-internal.md" ] && echo "PASS" || echo "FAIL: No CHANGELOG-internal.md at container level"
+```
+
+Pass condition: `$PLUGINS_DIR/$NAME/CHANGELOG-internal.md` exists as a file.
+
 ### Implementation Note
 
 When aggregating check results with counters in bash, use `PASS=$((PASS + 1))` and `FAIL=$((FAIL + 1))`. Do NOT use `((PASS++))` — it returns exit code 1 when incrementing from 0, which causes false failures.
 
 ### Validation Result
 
-If ALL 8 checks pass:
+If ALL 9 checks pass:
 - Output the confirmation format from the Confirmation Output section above
 - The `✔ validate: NAME — all checks passed` line is the final output
 
