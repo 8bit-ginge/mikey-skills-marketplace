@@ -52,14 +52,14 @@ Execute these stages in sequence. Each stage must succeed before the next begins
 Each write stage (4–8) has both an **EXECUTE behaviour** block and a **DRY-RUN behaviour** block in publish-rules.md. The MODE variable from Input Handling selects which block runs. Read-only stages (1, 2, 0, 3) have no branch — they run the same in both modes because they never touch disk.
 
 1. **Validation Gate** — run all validation checks from validation-rules.md; hard stop and show full report if any check fails (D-09)
-2. **Version Bump Prompt** — read current version, compute three bump options, present the D-04 prompt; wait for user to select 1, 2, or 3
+2. **Version Bump (Recommendation + Prompt)** — compute an advisory bump recommendation from conventional commits (Stage 2a), then present the three-option bump prompt (Stage 2b); wait for user to select 1, 2, or 3
 3. **PREFLIGHT** — run 4 environment checks (semver validity, version regression, remote sync, manifest presence and name match); hard stop on 0a/0d failure, warning on 0b/0c (D-11)
-4. **Changelog Summary Prompt** — present "Describe the change in one sentence:"; wait for user response (D-05)
+4. **Changelog Summary Prompt** — present the user-facing summary prompt (avoid phase numbers, milestone labels, internal jargon); wait for user response
 5. **Write Version Bump** — update version field in SKILL.md frontmatter (skills) or plugin.json (plugins)
 6. **Write CHANGELOG Entry** — insert new entry at top of CHANGELOG.md in container directory
 7. **Package** — ZIP for skills (cd into claude-code-skill/ first to ensure SKILL.md is at root); rsync for plugins (with pre-rsync .git cleanup)
 8. **Copy to Marketplace + Update Index** — copy packaged artifact; update marketplace.json for plugins only; update README version line for plugins; regenerate README.md for all artifacts (skip-if-unchanged guard on index README). After Stage 7 completes, display a structured change summary of README modifications before proceeding to Stage 8
-9. **Git Commit and Push** — stage all changes, show pre-push confirmation gate (y/N) with commit preview and staged file count; on user confirm: commit and push to origin/main; on push failure: attempt one auto pull-rebase recovery then retry (per D-10 two-tier system); on success: print verification nudge with GitHub URL (per D-13)
+9. **Git Commit and Push** — stage all changes, show pre-push confirmation gate (y/N) with commit preview and staged file count; on user confirm: commit and push to origin/main; on push failure: attempt one auto pull-rebase recovery then retry (per D-10 two-tier system); on success: print verification nudge with GitHub URL (per D-13). Stage 8a2 creates an annotated source-repo tag v<new-version> with the captured summary before pushing (local tag only, not pushed)
 
 ## Output Format
 
@@ -78,9 +78,10 @@ Follow the output format contracts in publish-rules.md exactly.
 - Validation gate is non-negotiable — NEVER skip Stage 1 regardless of user request
 - Two separate prompts (Stage 2 THEN Stage 3) — never combine into one prompt
 - Skills get ZIP packaging (cd into claude-code-skill/ first); plugins get rsync copy — never mix these
+- CHANGELOG.md is user-facing and rsyncs to the marketplace; CHANGELOG-internal.md is source-only (never rsynced — excluded at Stage 6) — never remove the CHANGELOG-internal.md exclude or the split collapses
 - Skills NEVER get marketplace.json entries — only plugins do
 - If git push fails, attempt exactly one auto pull-rebase recovery before showing manual recovery (D-10 two-tier system); if rebase conflicts, run `git rebase --abort` immediately — never leave the marketplace repo mid-rebase
 - The pre-push confirmation gate (y/N) is non-skippable — no `--force`, `--yes`, or bypass flag exists (per D-13)
 - PREFLIGHT is non-skippable — always runs after version prompt, before changelog prompt
 - In dry-run mode (`--dry-run`), NO files are created, modified, or pushed — every write stage emits a `[DRY RUN]` line describing what it would do instead; see D-12 in publish-rules.md for the exact contract
-- In dry-run mode, Stage 8 emits zero git invocations — no `git add`, `git commit`, `git push`, and no git subshell calls to resolve branch or remote state (enforced by the Stage 8 DRY-RUN behaviour block in publish-rules.md, per the D-12 contract)
+- In dry-run mode, Stage 8 emits zero git WRITES — no `git add`, `git commit`, `git push`, `git tag -a`, and no branch/remote-state resolution for the push machinery (Stage 8a2 runs read-only `git rev-parse` + `git tag -l` only, to select the faithful dry-run verb phrase per D-19; enforced by the Stage 8 DRY-RUN behaviour block in publish-rules.md, per the D-12 contract)

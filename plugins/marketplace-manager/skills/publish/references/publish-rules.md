@@ -13,12 +13,13 @@ Complete pipeline logic for the `/marketplace-manager:publish` command. This is 
 7. [Stage 3: Changelog Summary Prompt](#stage-3-changelog-summary-prompt)
 8. [Stage 4: Write Version Bump](#stage-4-write-version-bump)
 9. [Stage 5: Write CHANGELOG Entry](#stage-5-write-changelog-entry)
-10. [Stage 6: Package](#stage-6-package)
-11. [Stage 7: Copy to Marketplace and Update Index](#stage-7-copy-to-marketplace-and-update-index)
-12. [Stage 8: Git Commit and Push](#stage-8-git-commit-and-push)
-13. [Output Format Contracts](#output-format-contracts)
+10. [CHANGELOG Conventions](#changelog-conventions)
+11. [Stage 6: Package](#stage-6-package)
+12. [Stage 7: Copy to Marketplace and Update Index](#stage-7-copy-to-marketplace-and-update-index)
+13. [Stage 8: Git Commit and Push](#stage-8-git-commit-and-push)
+14. [Output Format Contracts](#output-format-contracts)
     - [Dry-Run Output (D-12)](#dry-run-output-d-12)
-14. [Failure Handling](#failure-handling)
+15. [Failure Handling](#failure-handling)
 
 ---
 
@@ -104,11 +105,144 @@ Run the full validation logic from `validation-rules.md` against the artifact. T
 
 ---
 
-## Stage 2: Version Bump Prompt
+## Stage 2: Version Bump (Recommendation + Prompt)
+
+Stage 2 has two sub-steps: **2a** computes an advisory bump recommendation from conventional commits on the artifact's source repo; **2b** presents the interactive bump-type prompt. 2a is advisory only — the developer still chooses freely.
+
+### Sub-step 2a: Bump Recommendation
+
+Read-only: scans the **artifact's source repo only** (never the marketplace repo) for conventional commits since the last reachable tag and prints `Recommend: <type> — <rationale>`. The developer still chooses freely at sub-step 2b — this is advisory (per D-02, D-05, BUMP-01, BUMP-02).
+
+**EXECUTE:**
+
+```bash
+SOURCE_DIR="<source-dir>"  # e.g. /Users/<user>/.../plugins/<name>/ — container_dir, same derivation as Stage 5
+
+# D-07 branch: no source git repo → skip recommendation, still allow prompt at 2b
+if ! git -C "$SOURCE_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "Recommend: (none) — no git history available for <name>"
+else
+  # D-03 baseline / D-06 fallback: resolve tag range
+  if LAST_TAG=$(git -C "$SOURCE_DIR" describe --tags --abbrev=0 2>/dev/null); then
+    RANGE_DESC="since $LAST_TAG"
+    COMMIT_BODY=$(git -C "$SOURCE_DIR" log "$LAST_TAG"..HEAD --format=%B)
+  else
+    RANGE_DESC="no prior tag; scanned last 50 commits"
+    COMMIT_BODY=$(git -C "$SOURCE_DIR" log -50 --format=%B)
+  fi
+
+  # D-04 heuristic applied via stdlib Python
+  echo "$COMMIT_BODY" | python3 -c "
+import sys, re
+body = sys.stdin.read()
+range_desc = '$RANGE_DESC'
+
+# D-08 degenerate case
+if not body.strip():
+    print(f'Recommend: patch — no commits found {range_desc}')
+    sys.exit(0)
+
+# D-04 rule 1: major (BREAKING CHANGE footer OR type! prefix)
+has_breaking = bool(re.search(r'^BREAKING CHANGE', body, re.MULTILINE))
+has_bang     = bool(re.search(r'^[a-z]+(\([^)]+\))?!:', body, re.MULTILINE))
+
+# Counts for rationale detail
+feat_count = len(re.findall(r'^feat(\(|:)', body, re.MULTILINE))
+fix_count  = len(re.findall(r'^fix(\(|:)',  body, re.MULTILINE))
+
+if has_breaking or has_bang:
+    signal = 'BREAKING CHANGE' if has_breaking else \"'!' marker on type\"
+    print(f'Recommend: major — {signal} {range_desc}')
+elif feat_count > 0:
+    print(f'Recommend: minor — {feat_count} feat commit(s) {range_desc}, no breaking changes')
+else:
+    print(f'Recommend: patch — {fix_count} fix commit(s) {range_desc}')
+"
+fi
+```
+
+Print a progress checkmark after the recommendation line: `echo "✅ Stage 2a: Bump Recommendation computed"` (per CLAUDE.md "No silent stages" rule — the `Recommend: …` line itself is the visible progress).
+
+**DRY RUN:**
+
+Per D-19, Stage 2a runs the same computation as EXECUTE (read-only `git` reads are safe in dry-run — same contract as PREFLIGHT 0c at publish-rules.md:246-258). Only the `print(...)` statements gain the `[DRY RUN] ` prefix. The verbatim DRY RUN block, modeled after PREFLIGHT 0c, prints one of four output lines depending on source-repo state:
+
+```bash
+SOURCE_DIR="<source-dir>"  # same derivation as EXECUTE
+
+# D-07 branch: no source git repo
+if ! git -C "$SOURCE_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: (none) — no git history available for <name>"
+else
+  # D-03 baseline / D-06 fallback: resolve tag range (read-only)
+  if LAST_TAG=$(git -C "$SOURCE_DIR" describe --tags --abbrev=0 2>/dev/null); then
+    RANGE_DESC="since $LAST_TAG"
+    COMMIT_BODY=$(git -C "$SOURCE_DIR" log "$LAST_TAG"..HEAD --format=%B)
+  else
+    RANGE_DESC="no prior tag; scanned last 50 commits"
+    LAST_TAG=""
+    COMMIT_BODY=$(git -C "$SOURCE_DIR" log -50 --format=%B)
+  fi
+
+  # D-04 heuristic applied via stdlib Python — same body as EXECUTE; only print lines gain [DRY RUN] prefix
+  echo "$COMMIT_BODY" | python3 -c "
+import sys, re
+body = sys.stdin.read()
+range_desc = '$RANGE_DESC'
+last_tag = '$LAST_TAG'
+
+# D-08 degenerate case
+if not body.strip():
+    print(f'[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: patch — no commits found since {last_tag}')
+    sys.exit(0)
+
+has_breaking = bool(re.search(r'^BREAKING CHANGE', body, re.MULTILINE))
+has_bang     = bool(re.search(r'^[a-z]+(\([^)]+\))?!:', body, re.MULTILINE))
+feat_count = len(re.findall(r'^feat(\(|:)', body, re.MULTILINE))
+fix_count  = len(re.findall(r'^fix(\(|:)',  body, re.MULTILINE))
+
+if has_breaking or has_bang:
+    signal = 'BREAKING CHANGE' if has_breaking else \"'!' marker on type\"
+    print(f'[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: major — {signal} {range_desc}')
+elif feat_count > 0:
+    print(f'[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: minor — {feat_count} feat commit(s) {range_desc}, no breaking changes')
+else:
+    if last_tag:
+        print(f'[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: patch — {fix_count} fix commit(s) {range_desc}')
+    else:
+        print(f'[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: {(\"patch\" if fix_count == 0 else \"patch\")} — no prior tag; scanned last 50 commits, {fix_count} fix commit(s)')
+"
+fi
+```
+
+All four output paths must be reachable by inspection of the DRY RUN block:
+
+- **Normal path** (tag exists, commits found):
+  `[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: <type> — <rationale>`
+- **D-07 path** (no source `.git`):
+  `[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: (none) — no git history available for <name>`
+- **D-08 path** (no commits since last tag):
+  `[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: patch — no commits found since <last-tag>`
+- **Fallback path** (no prior tag, scans last 50 commits):
+  `[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: <type> — no prior tag; scanned last 50 commits, <signal>`
+
+Note: the `git log` / `git describe` reads are strictly read-only and safe in dry-run — same contract as PREFLIGHT 0c (see publish-rules.md:246-258).
+
+**Rationale line shapes (D-05):**
+
+- `Recommend: major — BREAKING CHANGE since v0.3.1`
+- `Recommend: major — '!' marker on type since v0.3.1`
+- `Recommend: minor — 3 feat commit(s) since v0.3.1, no breaking changes`
+- `Recommend: patch — 5 fix commit(s) since v0.3.1`
+- `Recommend: patch — no commits found since v0.3.1`
+- `Recommend: patch — 0 fix commit(s) no prior tag; scanned last 50 commits`
+- `Recommend: (none) — no git history available for <name>`
+
+### Sub-step 2b: Version Bump Prompt
 
 **Requirement:** PUB-03 — present version bump options before any writes.
 
-### Step 1: Read current version
+#### Step 1: Read current version
 
 **For skills** — read from `<skills-dir>/<name>/claude-code-skill/SKILL.md` YAML frontmatter:
 
@@ -135,7 +269,7 @@ print(d.get('version', 'MISSING'))
 "
 ```
 
-### Step 2: Normalize version to semver and compute bump options
+#### Step 2: Normalize version to semver and compute bump options
 
 **All versions are normalized to semver (X.Y.Z) before computing bumps.** If the current version has no dots (e.g., `2`), treat it as `2.0.0`. If it has one dot (e.g., `2.1`), treat it as `2.1.0`. This ensures patch, minor, and major bumps always produce different results.
 
@@ -153,7 +287,7 @@ minor_ver = f'{parts[0]}.{parts[1]+1}.0'
 major_ver = f'{parts[0]+1}.0.0'
 ```
 
-### Step 3: Present the prompt (D-04 format)
+#### Step 3: Present the prompt (D-04 format)
 
 ```
 Current version: <version>
@@ -167,6 +301,16 @@ What kind of change is this?
 Wait for user response (1, 2, or 3). Store the selected new version as `<new-version>`.
 
 **The selected version is always in semver format** (e.g., `2.0.1`), regardless of the original format. This aligns with the project convention that versions follow `X.X.X`.
+
+**DRY RUN:**
+
+Stage 2b is a read-only interactive prompt; in dry-run mode the pipeline does NOT block for user input. Print exactly one line (per D-19 and the D-12 per-stage verb-phrase contract):
+
+```
+[DRY RUN] ✅ Stage 2b: Version Bump Prompt — would prompt for bump type (selected: <type> → <new-version>)
+```
+
+Per D-19, `<type>` defaults to the recommendation computed by Sub-step 2a for dry-run display purposes (patch / minor / major / none), and `<new-version>` is the version that would result from applying that bump to `<current-version>`.
 
 ---
 
@@ -347,15 +491,40 @@ Continue to Stage 3.
 
 **Requirement:** PUB-03 — second separate prompt before any writes.
 
-Present exactly:
+Stage 3 captures the user-facing release summary. The prompt deliberately names the taboos (phase numbers, milestone labels, internal jargon) to prime clean input the first time — cheaper than rewriting a leaked entry after Stage 6 rsync. Empty input reprompts (D-10); whitespace and newlines are sanitised on input (D-11).
 
-```
-Describe the change in one sentence:
+**EXECUTE:**
+
+```bash
+while :; do
+  echo "Summarise this release in one sentence (user-facing — avoid phase numbers, milestone labels, and internal jargon):"
+  read -r RAW_SUMMARY
+  # D-11 sanitisation: strip trailing newlines, collapse internal newlines to spaces, trim surrounding whitespace.
+  SUMMARY=$(printf '%s' "$RAW_SUMMARY" | python3 -c "
+import sys, re
+raw = sys.stdin.read()
+cleaned = re.sub(r'\s*\n\s*', ' ', raw).strip()
+print(cleaned)
+")
+  if [ -n "$SUMMARY" ]; then
+    break
+  fi
+  echo "Summary cannot be empty — please provide one sentence."
+done
+echo "✅ Stage 3: Summary captured"
 ```
 
-Wait for user response. Store as `<summary>`.
+The captured value is stored in `$SUMMARY` and consumed by Stage 5 (CHANGELOG entry) and, in Plan 18-02, by Stage 8a2 (release tag).
 
 Do NOT combine this prompt with the version bump prompt. Two separate interactions — one thing at a time (D-03).
+
+**DRY RUN:**
+
+Stage 3 is a read-only interactive prompt; in dry-run mode the pipeline does NOT execute the while-loop or read stdin. Print exactly one line (per D-20):
+
+```
+[DRY RUN] ✅ Stage 3: Changelog Summary Prompt — would prompt for user-facing summary (captured)
+```
 
 ---
 
@@ -578,6 +747,59 @@ Return success. Continue to Stage 6.
 
 ---
 
+## CHANGELOG Conventions
+
+Two files in every plugin / skill source repo. One publishes, one does not. One pipeline produces both — Stage 3 captures the user-facing summary, Stage 5 writes it to `CHANGELOG.md`, Stage 6 rsyncs that file only, Stage 8a2 tags it on the source repo.
+
+### Files
+
+- **CHANGELOG.md — user-facing.**
+  Lives in the source repo root AND in the marketplace copy (via Stage 6 rsync).
+  One short sentence per release. Keep-a-Changelog heading shape (`## v<version> — <YYYY-MM-DD>`).
+  Target audience: developers installing the plugin who want to know what's new.
+
+- **CHANGELOG-internal.md — source-only.**
+  Lives in the source repo root; NEVER rsyncs to the marketplace (Stage 6 `--exclude` enforces this).
+  Milestones, phase boundaries, decisions, refactor notes — anything specific to how this plugin is built.
+  Target audience: you, future-you, and GSD planning agents.
+
+### Rationale
+
+The marketplace copy is what users see on `claude plugin list` and in README tables. Phase numbers, milestone labels, and internal jargon leak context the user doesn't need and make releases look noisy. The two-file split keeps the user-facing log lean without losing the dev-internal history that makes the pipeline auditable.
+
+### How Stage 3 primes you
+
+The [Stage 3: Changelog Summary Prompt](#stage-3-changelog-summary-prompt) release-summary prompt names the taboos explicitly — phase numbers, milestone labels, internal jargon. This is the early-catch layer. Rewriting a leaked entry after rsync is more expensive than writing cleanly the first time. The same captured summary is reused by Stage 8a2 as the annotated tag's message, so any leaked jargon compounds into the tag history too.
+
+### Rsync enforcement
+
+[Stage 6: Package exclude list](#stage-6-package) contains `--exclude='CHANGELOG-internal.md'`. If the file doesn't exist, nothing is excluded — the rule is unconditional and safe. No `--delete` flag is used, so a pre-existing stale copy at a marketplace destination is NOT auto-removed; the manual remediation is a one-off `git rm` in the marketplace repo. No plugin currently has such a stale copy (verified for marketplace-manager; assumed for the rest until Phase 19 back-fill surfaces otherwise).
+
+### Scaffolding and back-fill (Phase 19)
+
+Phase 19 extends `/new-plugin` to scaffold both files with stubs (CLOG-05), and back-fills marketplace-manager's own `CHANGELOG-internal.md` from git history (CLOG-06). Phase 18 establishes the convention and the rsync enforcement only; it does NOT touch any existing plugin's on-disk CHANGELOGs. If a skill or plugin does not yet have `CHANGELOG-internal.md`, the pipeline runs clean — the rsync exclude is a no-op when there's nothing to exclude.
+
+### Tagging note
+
+[Sub-step 8a2](#stage-8-git-commit-and-push) creates an annotated source-repo tag `v<new-version>` on every publish, with the captured Stage 3 summary as the tag message. These publish tags are the new ground truth for Stage 2a's `git describe` baseline. The older milestone tags (`v1.0`, `v1.1`, `v1.2`) remain as archival markers in the repo history but no longer represent ship points. If you see two families of tags on a source repo, that's why.
+
+### Example — lean entry (user-facing `CHANGELOG.md`)
+
+    ## v0.3.2 — 2026-04-16
+
+    Stage 2 now recommends a version bump from commit history.
+
+### Example — rich entry (dev-internal `CHANGELOG-internal.md`)
+
+    ## v0.3.2 — 2026-04-16 — Phase 18 complete
+
+    - Added Stage 2a bump recommendation (BUMP-01..BUMP-06).
+    - Stage 8a2 creates annotated source-repo tag.
+    - CHANGELOG two-file split: user-facing vs dev-internal.
+    - See .planning/phases/18-.../18-02-SUMMARY.md for verification trace.
+
+---
+
 ## Stage 6: Package
 
 **EXECUTE behaviour:**
@@ -636,6 +858,7 @@ rsync -a \
   --exclude='.idea/' \
   --exclude='.vs/' \
   --exclude='documentation/' \
+  --exclude='CHANGELOG-internal.md' \
   --exclude='.DS_Store' \
   /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>/ \
   /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/<name>/
@@ -656,7 +879,7 @@ Print exactly one line. The line shape depends on artifact type:
 
 **For plugins:**
 ```
-[DRY RUN] ✅ Stage 6: Package — would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, .DS_Store) after cleaning any .git contamination in destination
+[DRY RUN] ✅ Stage 6: Package — would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, CHANGELOG-internal.md, .DS_Store) after cleaning any .git contamination in destination
 ```
 
 Use the actual resolved paths from Ecosystem Paths and Type Detection — substitute `<name>`, `<marketplace>`, and `<plugins-dir>` with their real values.
@@ -1008,6 +1231,8 @@ The diff summary uses `+`, `-`, `~` prefixes for Added, Removed, Updated respect
 
 **EXECUTE behaviour:**
 
+### Sub-step 8a: Marketplace commit (after gate)
+
 ```bash
 MARKETPLACE=/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace
 # Stage all changes FIRST (required before STAGED_COUNT and gate prompt)
@@ -1027,6 +1252,42 @@ case "$GATE_ANSWER" in
     exit ;;
 esac
 git -C "$MARKETPLACE" commit -m "publish: <name> v<new-version> — <summary>"
+```
+
+### Sub-step 8a2: Git Tag (source repo)
+
+After the marketplace commit (8a) and BEFORE the push (8b), create an annotated tag on the source repo (NOT the marketplace repo) so that the next publish has a fresh baseline for Stage 2a's `git describe` (closes the BUMP-01 feedback loop). Runs UNCONDITIONALLY except when the source repo has no `.git/` directory (D-07 skip).
+
+**Rationale notes:**
+- Why source repo (not marketplace): Stage 2a's `git describe` reads the source repo (D-02); marketplace tag space would collide across plugins; source is per-plugin.
+- Why no tag push: out of scope per CONTEXT (deferred). Stage 8b push target is marketplace repo, unchanged.
+- Why no post-create assertion: per RESEARCH Q10, `git tag -a` is atomic; the Pitfall-4 existence guard below covers the retry case.
+- Why the tag points at pre-bump HEAD: Stage 4/5 edits are uncommitted at this point; the tag is a publish-time anchor, not a commit-correctness claim. Future phases introducing source-repo commits can move the tag forward.
+
+```bash
+SOURCE_DIR="<source-dir>"   # container_dir, same as Stage 5
+NEW_VERSION="<new-version>" # from Stage 2b
+# SUMMARY was captured in Stage 3
+
+# D-07: no source git repo -> warn-and-continue (matches PIPE-02)
+if ! git -C "$SOURCE_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "⚠️  Tag skipped — <name> has no source git repo"
+else
+  # Pitfall 4: retry-publish guard; do NOT force-move an existing tag
+  if git -C "$SOURCE_DIR" tag -l "v${NEW_VERSION}" | grep -q "v${NEW_VERSION}"; then
+    echo "⚠️  Tag v${NEW_VERSION} already exists on source repo — leaving in place"
+  else
+    git -C "$SOURCE_DIR" tag -a "v${NEW_VERSION}" -m "$SUMMARY"
+    echo "✅ Tagged source: v${NEW_VERSION}"
+  fi
+fi
+```
+
+**Threat note (T-18-04):** `SUMMARY` is passed as a single `-m "$SUMMARY"` argv value — git does NOT re-interpret the value as shell. Any metacharacters (`;`, `$`, backticks) land in the tag message verbatim.
+
+### Sub-step 8b: Push
+
+```bash
 git -C "$MARKETPLACE" push origin main
 PUSH_EXIT=$?
 ```
@@ -1046,17 +1307,34 @@ If `PUSH_EXIT` is not 0 (failure): follow the two-tier recovery protocol defined
 
 **DRY-RUN behaviour:**
 
-Do NOT run `git add`, `git commit`, or `git push`. Do NOT run `git -C`, `git branch`, `git remote`, `git status`, `git rev-parse`, `git ls-remote`, `git rev-list`, or ANY other git subcommand. Do NOT resolve the current branch name or remote URL at runtime — use the static string `origin/main` and the marketplace path from Ecosystem Paths.
+Do NOT run `git add`, `git commit`, or `git push`. Do NOT run `git branch`, `git remote`, `git status`, `git ls-remote`, `git rev-list`, or ANY other write-path git subcommand. Do NOT resolve the current branch name or remote URL at runtime — use the static string `origin/main` and the marketplace path from Ecosystem Paths.
 
-Rationale: D-11 prohibits ALL git invocations in dry-run Stage 8 to keep the simulation pure. The marketplace remote is single-branch by project convention (see Ecosystem Paths), so no runtime resolution is necessary.
+**Exception for Stage 8a2 (per D-19):** the read-only detection `git -C "$SOURCE_DIR" rev-parse --show-toplevel >/dev/null 2>&1` AND the read-only guard `git -C "$SOURCE_DIR" tag -l "v${NEW_VERSION}"` ARE run in dry-run so the printed verb phrase is faithful (normal / D-07 / Pitfall-4). These reads never write — they only select which of the three 8a2 lines below to print. Same precedent as Stage 0c's `git ls-remote` and Stage 2a's `git describe` under D-19.
 
-Print exactly four lines:
+Rationale: D-11 prohibits git WRITES in dry-run Stage 8. Stage 8a2's read-only detection is allowed because a misleading `would create annotated tag` line for a skill that has no `.git` directory violates D-12 faithfulness. The marketplace remote is single-branch by project convention (see Ecosystem Paths), so no runtime resolution is necessary.
+
+Print exactly five lines. For the Stage 8a2 line, select ONE of three variants based on the real read-only detection above:
+
+**Normal path** (source repo exists; tag not yet present):
 
 ```
 [DRY RUN] ✅ Stage 8 Gate — would prompt for pre-push confirmation (y/N)
 [DRY RUN] ✅ Stage 8a: Git — would commit "publish: <name> v<new-version> — <summary>" in <marketplace>
+[DRY RUN] ✅ Stage 8a2: Git tag — would create annotated tag v<new-version> on <source-dir>
 [DRY RUN] ✅ Stage 8b: Git — would push to origin/main
 [DRY RUN] ✅ Would prompt to verify update on GitHub
+```
+
+**D-07 path** (no source git repo) — replace the Stage 8a2 line with:
+
+```
+[DRY RUN] ⚠️  Stage 8a2: Git tag — would skip (no source git repo for <name>)
+```
+
+**Pitfall-4 path** (tag already exists on source repo) — replace the Stage 8a2 line with:
+
+```
+[DRY RUN] ⚠️  Stage 8a2: Git tag — would skip (tag v<new-version> already exists on <source-dir>)
 ```
 
 Where:
@@ -1180,17 +1458,19 @@ The verb phrase names the concrete target: file path, command summary, or remote
 | Stage | Verb phrase template |
 |-------|----------------------|
 | 1 | `would run all validation checks (<pass-count> passed)` |
-| 2 | `would prompt for bump type (selected: <type> → <new-version>)` |
+| 2a | `would compute recommendation (<type> — <rationale>)` |
+| 2b | `would prompt for bump type (selected: <type> → <new-version>)` |
 | 0 | `would run 4 checks (<status>)` |
-| 3 | `would prompt for summary (captured)` |
+| 3 | `would prompt for user-facing summary (captured)` |
 | 4 | `would write version <new-version> to <manifest-file>` |
 | 5 | `would prepend v<new-version> entry to <container>/CHANGELOG.md` |
-| 6 (plugin) | `would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, .DS_Store) after cleaning any .git contamination in destination` |
+| 6 (plugin) | `would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, CHANGELOG-internal.md, .DS_Store) after cleaning any .git contamination in destination` |
 | 6 (skill) | `would zip claude-code-skill/ into <name>.skill and copy to <marketplace>/skills/<name>/<name>.skill` |
 | 7a | `would update marketplace.json entry "<name>" → version <new-version>` (plugins only) |
 | 7a2 | `would update version to <new-version> in <source-readme-path> and <marketplace-readme-path>` (plugins only; skills skip — no 7a2 line printed) |
 | 7b | `would regenerate marketplace index with <name> v<new-version>` |
 | 8a | `would commit "publish: <name> v<new-version> — <summary>" in <marketplace>` |
+| 8a2 | `would create annotated tag v<new-version> on <source-dir>` |
 | 8b | `would push to origin/main` |
 
 For skills at Stage 7a, the line is `would skip marketplace.json (skills do not register)`.
@@ -1209,14 +1489,15 @@ The `✔` (heavy check mark, U+2714) leads the line — `[DRY RUN]` follows the 
 | Stage | Name                        | Status | What would happen                                     |
 |-------|-----------------------------|--------|-------------------------------------------------------|
 | 1     | Validation Gate             | PASS   | would run all validation checks (<pass-count> passed) |
-| 2     | Version Bump Prompt         | PASS   | would prompt for bump type (selected: <type> → <new-version>) |
+| 2a    | Bump Recommendation         | PASS   | would compute recommendation (<type> — <rationale>)   |
+| 2b    | Version Bump Prompt         | PASS   | would prompt for bump type (selected: <type> → <new-version>) |
 | 0     | PREFLIGHT                   | PASS   | would run 4 checks (<status>)                         |
-| 3     | Changelog Summary Prompt    | PASS   | would prompt for summary (captured)                   |
+| 3     | Changelog Summary Prompt    | PASS   | would prompt for user-facing summary (captured)       |
 | 4     | Write Version Bump          | PASS   | would write version <new-version> to <manifest-file>  |
 | 5     | Write CHANGELOG Entry       | PASS   | would prepend v<new-version> entry to <container>/CHANGELOG.md |
-| 6     | Package                     | PASS   | would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, .DS_Store) after cleaning .git contamination / would zip claude-code-skill/ into <name>.skill and copy to <marketplace>/skills/<name>/<name>.skill |
+| 6     | Package                     | PASS   | would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, CHANGELOG-internal.md, .DS_Store) after cleaning .git contamination / would zip claude-code-skill/ into <name>.skill and copy to <marketplace>/skills/<name>/<name>.skill |
 | 7     | Copy to Marketplace + Index | PASS   | would update marketplace.json, update README version, and regenerate index with <name> v<new-version> |
-| 8     | Git Commit and Push         | PASS   | would commit and push to origin/main                  |
+| 8     | Git Commit and Push         | PASS   | would commit marketplace, tag source repo v<new-version>, push to origin/main |
 ```
 
 **Row order:** Execution order, matching the Pipeline Overview table (1, 2, 0, 3, 4, 5, 6, 7, 8). Do NOT sort numerically — Stage 0 (PREFLIGHT) appears in the third row because it runs between Stage 2 and Stage 3.

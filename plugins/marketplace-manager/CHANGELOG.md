@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.2 — 2026-04-19
+
+Publish pipeline now recommends a bump type from commit history and separates user-facing and internal changelogs.
+
 ## v0.3.1 — 2026-04-15
 
 Verify Stage 5 source-write fix end-to-end
