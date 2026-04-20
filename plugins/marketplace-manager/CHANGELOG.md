@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.4 — 2026-04-20
+
+Stage 2a bump recommendation now ignores archival two-segment milestone tags — only v publish tags anchor the baseline.
+
 ## v0.3.3 — 2026-04-19
 
 Fix /status rendering real skill versions — no more phantom @MISSING rows for valid skills.

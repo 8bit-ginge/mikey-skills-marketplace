@@ -123,7 +123,9 @@ if ! git -C "$SOURCE_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
   echo "Recommend: (none) — no git history available for <name>"
 else
   # D-03 baseline / D-06 fallback: resolve tag range
-  if LAST_TAG=$(git -C "$SOURCE_DIR" describe --tags --abbrev=0 2>/dev/null); then
+  # D-03/D-06 baseline — restrict to three-segment semver publish tags (Stage 8a2 shape).
+  # Archival two-segment milestone tags (v1.0, v1.1, v1.2) must NOT anchor the bump recommendation.
+  if LAST_TAG=$(git -C "$SOURCE_DIR" describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null); then
     RANGE_DESC="since $LAST_TAG"
     COMMIT_BODY=$(git -C "$SOURCE_DIR" log "$LAST_TAG"..HEAD --format=%B)
   else
@@ -175,7 +177,9 @@ if ! git -C "$SOURCE_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
   echo "[DRY RUN] ✅ Stage 2a: Bump Recommendation — Recommend: (none) — no git history available for <name>"
 else
   # D-03 baseline / D-06 fallback: resolve tag range (read-only)
-  if LAST_TAG=$(git -C "$SOURCE_DIR" describe --tags --abbrev=0 2>/dev/null); then
+  # D-03/D-06 baseline — restrict to three-segment semver publish tags (Stage 8a2 shape).
+  # Archival two-segment milestone tags (v1.0, v1.1, v1.2) must NOT anchor the bump recommendation.
+  if LAST_TAG=$(git -C "$SOURCE_DIR" describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null); then
     RANGE_DESC="since $LAST_TAG"
     COMMIT_BODY=$(git -C "$SOURCE_DIR" log "$LAST_TAG"..HEAD --format=%B)
   else

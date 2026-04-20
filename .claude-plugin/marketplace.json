@@ -31,7 +31,7 @@
       "name": "marketplace-manager",
       "source": "./plugins/marketplace-manager",
       "description": "Distribution and maintenance plugin for Claude skills and plugins \u2014 validate, scaffold, package, and publish to the GitHub marketplace.",
-      "version": "0.3.3"
+      "version": "0.3.4"
     }
   ]
 }
