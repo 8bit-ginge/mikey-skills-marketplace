@@ -41,7 +41,7 @@ The plugin manifest lives at `.claude-plugin/plugin.json` in the plugin root. Th
 {
   "name": "marketplace-manager",
   "description": "Distribution and maintenance plugin for Claude skills and plugins — validate, scaffold, package, and publish to the GitHub marketplace.",
-  "version": "0.2.0",
+  "version": "0.3.4",
   "author": {
     "name": "Mikey East"
   }

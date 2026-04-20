@@ -7,15 +7,17 @@ Complete lookup procedures, ecosystem paths, card format templates, and status l
 1. [Ecosystem Paths](#ecosystem-paths)
 2. [Artifact Discovery](#artifact-discovery)
 3. [Version Reading](#version-reading)
-4. [Marketplace Lookup](#marketplace-lookup)
-5. [Cache Lookup](#cache-lookup)
-6. [Version Normalisation](#version-normalisation)
-7. [Status Label Logic](#status-label-logic)
-8. [Card Format Template](#card-format-template)
-9. [Git Divergence Footer](#git-divergence-footer)
-10. [Summary Footer](#summary-footer)
-11. [Brief Mode](#brief-mode)
-12. [Full Output Structure](#full-output-structure)
+4. [Marketplace Manifest Read](#marketplace-manifest-read)
+5. [Name Resolution](#name-resolution)
+6. [Marketplace Lookup](#marketplace-lookup)
+7. [Cache Lookup](#cache-lookup)
+8. [Version Normalisation](#version-normalisation)
+9. [Status Label Logic](#status-label-logic)
+10. [Card Format Template](#card-format-template)
+11. [Git Divergence Footer](#git-divergence-footer)
+12. [Summary Footer](#summary-footer)
+13. [Brief Mode](#brief-mode)
+14. [Full Output Structure](#full-output-structure)
 
 ---
 
@@ -29,7 +31,7 @@ These absolute paths are the ground truth for locating skills and plugins. Do NO
 - **Marketplace repo:** `/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/`
 - **Claude Code install cache:** `~/.claude/plugins/installed_plugins.json`
 - **Marketplace name:** `mikey-skills` (used for cache key construction: `plugin-name@mikey-skills`)
-- **Marketplace skills path convention:** `<marketplace-repo>/skills/<name>/<name>.skill` (not yet populated — Phase 4 will publish here)
+- **Marketplace manifest:** `<marketplace-repo>/.claude-plugin/marketplace.json` (source of truth for published state — see §Marketplace Manifest Read)
 
 ---
 
@@ -112,48 +114,90 @@ Replace `<name>` with the actual plugin name. If the file does not exist, treat 
 
 ---
 
+## Marketplace Manifest Read
+
+Read the marketplace manifest ONCE per invocation and cache the parsed map. All per-artifact lookups in §Marketplace Lookup consume this cached map — do NOT reparse on each lookup.
+
+Run this block once, before the per-artifact loop. Missing or malformed input must NOT abort the command — it emits a warning footer and the per-artifact loop falls back to the `manifest unavailable` placeholder rendering (see §Card Format Template).
+
+**Return contract:**
+
+- `MANIFEST_MAP` populated — manifest read successfully, keyed by marketplace `name` with values `{version, source_path}`
+- `MANIFEST_UNAVAILABLE` — manifest file missing OR JSON parse failed (warning footer emitted at end of command)
+
+```bash
+python3 -c "
+import json, os
+path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/.claude-plugin/marketplace.json'
+try:
+    with open(path) as f:
+        data = json.load(f)
+    plugins = data.get('plugins', [])
+    for p in plugins:
+        name = p.get('name', '')
+        version = p.get('version', 'MISSING')
+        src = p.get('source', '')
+        # Marketplace.json 'source' may be a string path OR a dict with a 'path' key
+        if isinstance(src, dict):
+            src = src.get('path', '')
+        print(f'{name}|{version}|{src}')
+except (FileNotFoundError, json.JSONDecodeError, OSError):
+    print('MANIFEST_UNAVAILABLE')
+"
+```
+
+Each non-error line parses as `<marketplace-name>|<version>|<source-path>` — build the MANIFEST_MAP dict from these. A single `MANIFEST_UNAVAILABLE` line means fallback mode.
+
+**Warning footer (rendered only when MANIFEST_UNAVAILABLE):**
+
+```
+⚠️ Marketplace repo: marketplace.json missing or invalid — cannot check published state
+```
+
+This footer appears alongside the Git Divergence Footer (see §Full Output Structure) — one line, no trailing punctuation.
+
+---
+
+## Name Resolution
+
+Local artifact names do not always match marketplace names. Skills are wrapped and published as plugins with a `-plugin` suffix; plugins usually publish 1:1 but some may also be suffixed. Status resolves local → marketplace names by iterating an ordered candidate list and stopping at the first match in MANIFEST_MAP.
+
+**Candidate order (stop at first match):**
+
+1. `<name>` — direct match (e.g. `marketplace-manager` → `marketplace-manager`)
+2. `<name>-plugin` — wrapped-skill convention (e.g. `skill-forge` → `skill-forge-plugin`, `interview-research` → `interview-research-plugin`)
+
+**Extensibility:** New conventions (e.g. `<name>-cc`, `<name>-skill`) are appended to the ordered list above by editing THIS SECTION ONLY — do not inline candidate lists in Python blocks or in §Marketplace Lookup. Keeping the list in one named section is a load-bearing invariant for future edits.
+
+**Return contract:**
+
+- `<resolved-marketplace-name>` — a candidate matched an entry in MANIFEST_MAP; the resolved name is retained for §Card Format Template rendering
+- `UNRESOLVED` — no candidate matched (artifact is not published in the marketplace)
+
+---
+
 ## Marketplace Lookup
 
-Two procedures — one for skills (ZIP file), one for plugins (directory).
+Per-artifact lookup using MANIFEST_MAP (populated once by §Marketplace Manifest Read) and the §Name Resolution candidate order. Unified procedure for both skills and plugins — there is no longer a skill-specific path (skills are wrapped and published as plugins under `plugins/<marketplace-name>/`).
 
-### For Skills — Check .skill ZIP Existence then Read Version
+**Procedure (per artifact):**
 
-```bash
-# Check existence
-[ -f "/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill" ] && echo "present" || echo "absent"
+1. If MANIFEST_MAP is `MANIFEST_UNAVAILABLE` (global state set by §Marketplace Manifest Read), set this artifact's marketplace state to `manifest unavailable` and stop.
+2. Iterate §Name Resolution candidate order for this artifact's local name.
+3. For each candidate, look up `MANIFEST_MAP[<candidate>]`. First match wins:
+   - Record `resolved_marketplace_name = <candidate>`
+   - Record `marketplace_version = MANIFEST_MAP[<candidate>]['version']`
+   - Record `marketplace_source_path = MANIFEST_MAP[<candidate>]['source_path']` (e.g. `./plugins/skill-forge-plugin`)
+   - Stop iteration
+4. If no candidate matches, record `resolved_marketplace_name = UNRESOLVED` — artifact is not published.
 
-# Read version from .skill ZIP (if present)
-unzip -p "/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill" "SKILL.md" 2>/dev/null | python3 -c "
-import re, sys
-content = sys.stdin.read()
-m = re.search(r'^---\n(.*?)^---', content, re.MULTILINE | re.DOTALL)
-if m:
-    vm = re.search(r'^version:\s*(.+)$', m.group(1), re.MULTILINE)
-    print(vm.group(1).strip() if vm else 'MISSING')
-else:
-    print('MISSING')
-"
-```
+**Return contract (per artifact):**
 
-Replace `<name>` with the actual skill name.
+- `{resolved_name, version, source_path}` — resolved; feeds §Status Label Logic (rules 3-5) and §Card Format Template Marketplace row
+- `UNRESOLVED` — no candidate matched; feeds §Status Label Logic rule 4 (`❌ Not published`)
+- `MANIFEST_UNAVAILABLE` — global fallback; feeds §Card Format Template manifest-unavailable row
 
-### For Plugins — Check Directory Existence then Read plugin.json
-
-Note: Check directory existence as the primary test, NOT marketplace.json — a plugin directory may exist without a marketplace.json entry.
-
-```bash
-# Check existence
-[ -d "/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/<name>" ] && echo "present" || echo "absent"
-
-# Read version (if present)
-python3 -c "
-import json
-d = json.load(open('/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/<name>/.claude-plugin/plugin.json'))
-print(d.get('version', 'MISSING'))
-"
-```
-
-Replace `<name>` with the actual plugin name.
+No filesystem reads are performed in per-artifact lookup — all data comes from MANIFEST_MAP. The plugins-directory existence check and the archive existence check used in previous versions are REMOVED — the manifest is authoritative.
 
 ---
 
@@ -199,9 +243,13 @@ Apply in this precedence order — stop at the first matching condition:
 
 1. Skill Version Reading returns `NO_VERSION` (SKILL.md found but no `version:` key in frontmatter) → `⚠️ Missing version`
 2. Skill Version Reading returns `MISSING` (no SKILL.md at any candidate path) OR plugin Version Reading returns `MISSING` (no plugin.json) → `⚠️ Missing manifest`
-3. Marketplace entry does not exist (absent ZIP for skills, absent directory for plugins) → `❌ Not published`
-4. Local version equals marketplace version after normalisation → `✅ In sync`
-5. Local version higher than marketplace version after normalisation → `⚠️ Local ahead`
+3. Marketplace Lookup returns `MANIFEST_UNAVAILABLE` → (no status label — fall through to the manifest-unavailable card rendering; warning footer covers the overall condition)
+4. Marketplace Lookup returns `UNRESOLVED` (no candidate matched in MANIFEST_MAP) → `❌ Not published`
+5. Marketplace Lookup resolved via the `<name>-plugin` suffix candidate AND local version does NOT normalise to marketplace version → `⚠️ Wrapped` (version-scheme mismatch — single-digit skill version wrapped as semver plugin version)
+6. Local version equals marketplace version after normalisation → `✅ In sync`
+7. Local version higher than marketplace version after normalisation → `⚠️ Local ahead`
+
+When rule 5 fires, the card body includes the footnote line `local skill v<X> published as plugin v<Y>` on its own line between the Marketplace row and the Status row — see §Card Format Template.
 
 ---
 
@@ -212,33 +260,47 @@ Apply in this precedence order — stop at the first matching condition:
 ```
 ### <name> (skill)
 - Local:       skills/<name>/ [v<version>]
-- Marketplace: v<version> at mikey-skills-marketplace/skills/<name>/ | not published
+- Marketplace: v<version> at mikey-skills-marketplace/plugins/<marketplace-name>/ | not published
 - Status:      <status label>
 ```
 
 If local version is `MISSING`, show `[⚠️ missing manifest]` instead of `[v<version>]`. If local version is `NO_VERSION`, show `[⚠️ no version]` instead of `[v<version>]`.
 
 For the Marketplace row:
-- If published: `v<version> at mikey-skills-marketplace/skills/<name>/`
-- If not published: `not published`
+- If published AND resolved marketplace name equals local name: `v<version> at mikey-skills-marketplace/plugins/<name>/`
+- If published AND resolved marketplace name differs from local name: `v<version> at mikey-skills-marketplace/plugins/<marketplace-name>/ (published as <marketplace-name>)`
+- If UNRESOLVED (not in manifest): `not published`
+- If MANIFEST_UNAVAILABLE: `not published (manifest unavailable)`
+
+Skills are wrapped and published as plugins under `plugins/<marketplace-name>/` — there is no separate `skills/<name>/` path in the marketplace.
 
 ### Plugins Card (Local + Marketplace + Cache)
 
 ```
 ### <name> (plugin)
 - Local:       plugins/<name>/ [v<version>]
-- Marketplace: v<version> at mikey-skills-marketplace/plugins/<name>/ | not published
+- Marketplace: v<version> at mikey-skills-marketplace/plugins/<marketplace-name>/ | not published
 - Cache:       v<version> at ~/.claude/plugins/cache/mikey-skills/<name>/<version>/ | not installed
 - Status:      <status label>
 ```
 
 For the Marketplace row:
-- If published: `v<version> at mikey-skills-marketplace/plugins/<name>/`
-- If not published: `not published`
+- If published AND resolved marketplace name equals local name: `v<version> at mikey-skills-marketplace/plugins/<name>/`
+- If published AND resolved marketplace name differs from local name: `v<version> at mikey-skills-marketplace/plugins/<marketplace-name>/ (published as <marketplace-name>)`
+- If UNRESOLVED (not in manifest): `not published`
+- If MANIFEST_UNAVAILABLE: `not published (manifest unavailable)`
 
 For the Cache row:
 - If installed: `v<version> at ~/.claude/plugins/cache/mikey-skills/<name>/<version>/`
 - If not installed: `not installed`
+
+**Wrapped footnote (rule 5 of §Status Label Logic):** When the Status Label is `⚠️ Wrapped`, insert a footnote line between the Marketplace row and the Status row:
+
+```
+- Wrapped:     local skill v<X> published as plugin v<Y>
+```
+
+Where `<X>` is the local version (pre-normalisation, as read by §Version Reading) and `<Y>` is the marketplace version (pre-normalisation, as read from MANIFEST_MAP). This footnote is only rendered for the Wrapped status — never for In sync, Local ahead, or Not published cards.
 
 **Never omit a row for a missing source** — always show the row with the descriptive label ("not published", "not installed").
 

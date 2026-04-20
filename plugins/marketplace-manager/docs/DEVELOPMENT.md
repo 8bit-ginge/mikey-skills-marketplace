@@ -107,8 +107,7 @@ marketplace-manager/
 │   │       └── publish-rules.md
 │   └── marketplace-manager/
 │       └── SKILL.md             # Natural language router — no references dir
-├── docs/                        # Project documentation
-└── documentation/               # Legacy docs directory
+└── docs/                        # Project documentation
 ```
 
 **Key constraint:** Only `plugin.json` lives inside `.claude-plugin/`. All other directories (`skills/`, `docs/`, etc.) live at the plugin root level.

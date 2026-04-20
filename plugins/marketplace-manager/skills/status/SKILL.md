@@ -24,16 +24,18 @@ This command shows the sync state of every skill and plugin in the ecosystem. Al
 
 1. Read the "Artifact Discovery" section from status-rules.md
 2. Discover all skills and plugins in the ecosystem using the listed Bash commands
-3. For each artifact found:
+3. Read the "Marketplace Manifest Read" section from status-rules.md and populate MANIFEST_MAP once (before the per-artifact loop). If the return contract is `MANIFEST_UNAVAILABLE`, continue — the per-artifact loop will render the manifest-unavailable placeholder and the warning footer will be emitted at the end.
+4. For each artifact found:
    a. Read version from local source using the "Version Reading" procedures — YAML frontmatter for skills, plugin.json for plugins
-   b. Check marketplace presence and read marketplace version using the "Marketplace Lookup" procedures
+   b. Resolve the marketplace name and read marketplace version using the "Name Resolution" + "Marketplace Lookup" procedures (consumes MANIFEST_MAP from step 3)
    c. For plugins only: check install cache using the "Cache Lookup" procedure
    d. Normalise versions using the "Version Normalisation" rules
    e. Determine status label using the "Status Label Logic" precedence order
    f. Render the card using the "Card Format Template"
-4. After all cards, render a horizontal rule separator (`---`)
-5. Run the git divergence check using the "Git Divergence Footer" section
-6. Render the summary footer using the "Summary Footer" section
+5. After all cards, render a horizontal rule separator (`---`)
+6. Run the git divergence check using the "Git Divergence Footer" section
+7. If MANIFEST_MAP is `MANIFEST_UNAVAILABLE`, render the manifest-unavailable warning footer from §Marketplace Manifest Read
+8. Render the summary footer using the "Summary Footer" section
 
 ## Output Structure
 

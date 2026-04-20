@@ -9,12 +9,12 @@ The `marketplace-manager` is a Claude Code plugin that owns the **distribution a
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    marketplace-manager                     │
+│                    marketplace-manager                          │
 │                                                                 │
 │  ┌───────────────┐    ┌───────────────┐    ┌─────────────────┐  │
 │  │   validate    │◀───│    publish    │───▶│     status      │  │
-│  │  (SKILL.md +  │    │  (9-stage     │    │  (drift report) │  │
-│  │  rules ref)   │    │   pipeline)   │    │                 │  │
+│  │  (SKILL.md +  │    │  (9-stage     │    │  (drift report; │  │
+│  │  rules ref)   │    │   pipeline)   │    │  --brief mode)  │  │
 │  └───────────────┘    └───────┬───────┘    └─────────────────┘  │
 │                               │                                  │
 │  ┌───────────────┐    ┌───────▼───────┐                         │
@@ -32,9 +32,9 @@ The `marketplace-manager` is a Claude Code plugin that owns the **distribution a
          │                                │
          ▼                                ▼
 ┌─────────────────┐              ┌─────────────────────┐
-│  skills/ │              │   plugins/   │
-│  plugins/│              │ mikey-skills-market │
-│  (local source) │              │    place/ (GitHub)  │
+│  skills/        │              │   mikey-skills-     │
+│  plugins/       │              │   marketplace/      │
+│  (local source) │              │   (GitHub repo)     │
 └─────────────────┘              └─────────────────────┘
 ```
 
@@ -47,10 +47,11 @@ A typical end-to-end publish operation follows this path:
 1. **Entry** — User runs `/marketplace-manager:publish <name>` (or routes through `marketplace-manager` in natural language).
 2. **Type detection** — The skill resolves whether `<name>` is a skill (`skills/<name>/`) or a plugin (`plugins/<name>/`). Skills take precedence if both directories exist.
 3. **Validation gate (Stage 1)** — `publish` reads `validation-rules.md` from the `validate` skill's references and runs all applicable checks. If any check fails, the pipeline stops immediately — no writes occur.
-4. **User prompts (Stages 2–3)** — The version bump type (patch/minor/major) and a one-line changelog summary are collected before any files are written.
-5. **PREFLIGHT (Stage 0)** — Four pre-write safety checks, including duplicate-version detection using the version proposed in Stage 2.
-6. **Write stages (4–8)** — Version is bumped in `plugin.json` (plugins) or SKILL.md frontmatter (skills), CHANGELOG entry is written, the artifact is packaged, copied to the marketplace repo, the marketplace `README.md` index is regenerated, and a `git commit && push` is run.
-7. **Output** — Each stage emits a visible progress line. In `--dry-run` mode every line is prefixed `[DRY RUN]` and no filesystem writes occur.
+4. **Version prompt (Stage 2)** — An advisory conventional-commits bump recommendation is computed, then a three-option bump prompt (patch/minor/major) is presented. User selects before any files are written.
+5. **PREFLIGHT (Stage 0)** — Four pre-write safety checks run after the version prompt: semver validity, version regression detection (requires the proposed version from Stage 2), remote sync state, and manifest presence/name match. Hard stop on checks 0a/0d; warning-continue prompt on 0b/0c.
+6. **Changelog prompt (Stage 3)** — A one-line user-facing changelog summary is collected. No phase numbers, milestone labels, or internal jargon.
+7. **Write stages (4–8)** — Version is bumped in `plugin.json` (plugins) or SKILL.md frontmatter (skills); CHANGELOG entry is written; the artifact is packaged (ZIP for skills, rsync for plugins); copied to the marketplace repo with index and README regenerated; a source-repo annotated tag `v<new-version>` is created; and a pre-push confirmation gate (y/N) precedes a `git commit && push`.
+8. **Output** — Each stage emits a visible progress line. In `--dry-run` mode every line is prefixed `[DRY RUN]` and no filesystem writes occur.
 
 ---
 
@@ -62,7 +63,7 @@ A typical end-to-end publish operation follows this path:
 | `publish-rules.md` | `skills/publish/references/publish-rules.md` | Full pipeline specification: stage definitions, packaging commands, output format contracts, dry-run rules, and failure handling |
 | `scaffold-templates.md` | `skills/new-skill/references/scaffold-templates.md` and `skills/new-plugin/references/scaffold-templates.md` | Container templates, guard check logic, and directory creation order for scaffolding commands |
 | `status-rules.md` | `skills/status/references/status-rules.md` | Ecosystem paths, artifact discovery commands, version-reading procedures, status label logic, and card format templates |
-| `plugin.json` | `.claude-plugin/plugin.json` | Plugin manifest — name, version, description, author. Version `0.2.0` is the single source of truth for the plugin's own release version |
+| `plugin.json` | `.claude-plugin/plugin.json` | Plugin manifest — name, version, description, author. Version `0.3.4` is the single source of truth for the plugin's own release version |
 | Validation gate | Stage 1 of `publish-rules.md` | Hard stop before any writes — re-uses `validate` logic inline; cannot be bypassed |
 | Dry-run mode (`--dry-run`) | `publish-rules.md` D-12 contract | Full pipeline simulation with `[DRY RUN]` prefix on every output line; write stages print what they would do without touching the filesystem |
 
@@ -101,11 +102,10 @@ marketplace-manager/
 │   │       └── publish-rules.md
 │   └── marketplace-manager/
 │       └── SKILL.md             # NL router — no references subdir
-├── documentation/
-│   └── development-plan.md
 ├── docs/                        # Generated documentation
 ├── README.md
-└── CHANGELOG.md
+├── CHANGELOG.md
+└── CHANGELOG-internal.md        # Source-only; never rsynced to marketplace
 ```
 
 **Rationale by directory:**
@@ -113,7 +113,18 @@ marketplace-manager/
 - `.claude-plugin/` — Required by the Claude Code plugin system. Only `plugin.json` lives here; skills, commands, and hooks live at the plugin root per the spec.
 - `skills/` — Auto-discovered by Claude Code. Each subdirectory is one command the plugin exposes. Skills format is used throughout (no legacy `commands/` flat files).
 - `skills/<name>/references/` — One level of reference files only. All execution logic lives here, not in SKILL.md bodies. Loaded via explicit `Read:` instructions (glob-based discovery does not work at runtime).
-- `documentation/` — Dev plans and research notes. Not shipped to the marketplace (excluded during packaging).
+- `CHANGELOG-internal.md` — Internal changelog tracking GSD phases and development milestones. Excluded from marketplace rsync; never published.
+
+**Scaffolded skill container layout** (created by `new-skill`):
+
+```
+skills/NAME/
+├── claude-code-skill/
+│   └── SKILL.md                 # Starter frontmatter; passes validate immediately
+├── claude-desktop-skill/        # Empty directory; reserved for desktop packaging
+├── README.md
+└── CHANGELOG.md
+```
 
 ---
 

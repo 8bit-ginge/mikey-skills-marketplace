@@ -658,6 +658,7 @@ New entry format (Keep-a-Changelog variant observed in ecosystem):
 # changelog_path is derived from container_dir located earlier in this stage
 # (see "Locate the container directory"). This avoids hard-coded ecosystem path
 # templates that drift when the repo layout changes (the PIPE-05 failure class).
+import re
 from pathlib import Path
 
 changelog_path = Path(container_dir) / 'CHANGELOG.md'
@@ -668,10 +669,34 @@ summary = '<summary>'         # release summary from Stage 3
 with open(changelog_path) as f:
     content = f.read()
 
+# --- Defensive strip of legacy Keep-a-Changelog boilerplate (one-time cleanup) ---
+# Some early-v0.x CHANGELOGs contained a hand-authored preamble that got
+# stranded mid-file when newer entries were prepended above it. The pipeline
+# does not and has never emitted these lines — but if another plugin drifts
+# into the same shape, this defensive pass removes the stranded lines before
+# the new entry is inserted.
+#
+# Idempotent: on a clean CHANGELOG this is a no-op.
+# Safe to remove once all source repos are confirmed clean for one release cycle.
+content = re.sub(
+    r'^Format follows.*Keep a Changelog.*$\n?',
+    '',
+    content,
+    flags=re.MULTILINE | re.IGNORECASE,
+)
+content = re.sub(
+    r'^All notable changes.*plugin.*$\n?',
+    '',
+    content,
+    flags=re.MULTILINE | re.IGNORECASE,
+)
+# Collapse any 3+ consecutive newlines left behind into a single blank line.
+content = re.sub(r'\n{3,}', '\n\n', content)
+# --- end defensive strip ---------------------------------------------------
+
 new_entry = f'## v{new_version} \u2014 {today}\n\n{summary}\n\n'
 
 # Insert after the # Changelog header line (and any following blank lines)
-import re
 # Match # Changelog header followed by optional blank lines
 new_content = re.sub(
     r'^(# Changelog\n+)',

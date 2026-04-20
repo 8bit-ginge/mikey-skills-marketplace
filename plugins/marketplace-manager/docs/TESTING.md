@@ -133,6 +133,20 @@ These tests require running commands in Claude Code and observing the output. Th
 | Pre-push confirmation gate | Run publish against a valid artifact | Stage 9 shows y/N prompt with commit message and staged file count; commit and push only proceed on `y` |
 | Missing artifact name | `/marketplace-manager:publish --dry-run` (name omitted) | Prints usage line; stops — does not attempt to publish |
 
+### Status command
+
+| Test | How to run | What to check |
+|------|-----------|---------------|
+| Full mode | `/marketplace-manager:status` | Cards with git divergence footer and summary footer appear for all skills and plugins |
+| Brief inventory | `/marketplace-manager:status --brief` | Heading `## marketplace: status (brief)`; `### Skills (N)` and `### Plugins (M)` sections; one `- <name>@<version>` line per artifact; alphabetically sorted; closes with `Run without --brief for sync state and marketplace comparison.` |
+| List alias | `/marketplace-manager:status --list` | Output identical to `--brief` mode |
+
+### New-plugin scaffolding
+
+| Test | How to run | What to check |
+|------|-----------|---------------|
+| Scaffold smoke test | `/marketplace-manager:new-plugin <name>` | Plugin directory created; both `CHANGELOG.md` and `CHANGELOG-internal.md` land at the plugin root; silent validate prints `✔ validate: <name> — all checks passed` |
+
 ---
 
 ## Coverage Requirements

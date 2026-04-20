@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.5 — 2026-04-20
+
+Fix /status false-negatives: manifest-driven marketplace lookup with -plugin suffix resolution
+
 ## v0.3.4 — 2026-04-20
 
 Stage 2a bump recommendation now ignores archival two-segment milestone tags — only v publish tags anchor the baseline.
