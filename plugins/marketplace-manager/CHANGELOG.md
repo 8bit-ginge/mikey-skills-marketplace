@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.6 — 2026-04-20
+
+Pipeline hygiene: exclude .internal-documentation/ from marketplace rsync.
+
 ## v0.3.5 — 2026-04-20
 
 Fix /status false-negatives: manifest-driven marketplace lookup with -plugin suffix resolution

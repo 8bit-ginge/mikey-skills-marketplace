@@ -67,7 +67,7 @@ Then say things like "I've finished building my new skill, ship it" or "validate
 
 ## Version
 
-Current version: `0.3.5` — see [CHANGELOG.md](CHANGELOG.md) for release history.
+Current version: `0.3.6` — see [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 

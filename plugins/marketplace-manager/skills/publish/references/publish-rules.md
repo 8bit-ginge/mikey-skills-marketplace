@@ -887,6 +887,7 @@ rsync -a \
   --exclude='.idea/' \
   --exclude='.vs/' \
   --exclude='documentation/' \
+  --exclude='.internal-documentation/' \
   --exclude='CHANGELOG-internal.md' \
   --exclude='.DS_Store' \
   /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>/ \
