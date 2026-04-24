@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.0 — 2026-04-24
+
+Stage 6 restructured into labelled sub-steps 6a (build) / 6b (verify) / 6c (copy) with hard-stop before marketplace write — prevents broken skill publishes when SKILL.md is nested or zip fails. Also fixes 44 stale ecosystem-root path references across publish-rules.md and CLAUDE.md.
+
 ## v0.3.6 — 2026-04-20
 
 Pipeline hygiene: exclude .internal-documentation/ from marketplace rsync.

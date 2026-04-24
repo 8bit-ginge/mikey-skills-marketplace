@@ -133,9 +133,9 @@ Always `cd` into the target plugin or skill directory before invoking the publis
 Example:
 
 ```bash
-cd /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<plugin-name>
+cd /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/<plugin-name>
 # or for skills:
-cd /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<skill-name>
+cd /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<skill-name>
 
 # then:
 /marketplace-manager:publish <name> [--dry-run]

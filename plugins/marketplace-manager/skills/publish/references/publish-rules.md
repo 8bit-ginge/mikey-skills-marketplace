@@ -27,16 +27,16 @@ Complete pipeline logic for the `/marketplace-manager:publish` command. This is 
 
 These absolute paths are the ground truth for locating skills, plugins, and the marketplace. Do NOT embed these in SKILL.md body — they live here only.
 
-- **Ecosystem root:** `/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/`
-- **Skills directory:** `/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/`
-- **Plugins directory:** `/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/`
-- **Marketplace repo:** `/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/`
+- **Ecosystem root:** `/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/`
+- **Skills directory:** `/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/`
+- **Plugins directory:** `/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/`
+- **Marketplace repo:** `/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/`
 - **Marketplace remote:** `https://github.com/8bit-ginge/mikey-skills-marketplace.git`
 
 Abbreviated references used throughout this file:
-- `<skills-dir>` = `/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/`
-- `<plugins-dir>` = `/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/`
-- `<marketplace>` = `/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/`
+- `<skills-dir>` = `/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/`
+- `<plugins-dir>` = `/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/`
+- `<marketplace>` = `/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/`
 
 ---
 
@@ -50,8 +50,8 @@ Given a name from `$ARGUMENTS`, determine whether it is a skill or plugin. Use t
 4. If neither exists, report: `Artifact '<name>' not found in skills/ or plugins/` and stop
 
 ```bash
-[ -d "/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>" ] && echo "skill"
-[ -d "/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>" ] && echo "plugin"
+[ -d "/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>" ] && echo "skill"
+[ -d "/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/<name>" ] && echo "plugin"
 ```
 
 ---
@@ -253,7 +253,7 @@ Note: the `git log` / `git describe` reads are strictly read-only and safe in dr
 ```bash
 python3 -c "
 import re, sys
-content = open('/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill/SKILL.md').read()
+content = open('/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill/SKILL.md').read()
 m = re.search(r'^---\n(.*?)^---', content, re.MULTILINE | re.DOTALL)
 if m:
     vm = re.search(r'^version:\s*(.+)$', m.group(1), re.MULTILINE)
@@ -268,7 +268,7 @@ else:
 ```bash
 python3 -c "
 import json
-d = json.load(open('/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>/.claude-plugin/plugin.json'))
+d = json.load(open('/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/<name>/.claude-plugin/plugin.json'))
 print(d.get('version', 'MISSING'))
 "
 ```
@@ -391,7 +391,7 @@ If user enters N or empty, stop the pipeline. If user enters Y, continue to chec
 Check if the marketplace local branch is behind remote. Guard for first-ever push where origin/main may not exist:
 
 ```bash
-MARKETPLACE="/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace"
+MARKETPLACE="/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace"
 
 if git -C "$MARKETPLACE" ls-remote origin main 2>/dev/null | grep -q main; then
   BEHIND=$(git -C "$MARKETPLACE" rev-list HEAD..origin/main --count 2>/dev/null || echo "0")
@@ -412,7 +412,7 @@ fi
 **On WARN:** Print:
 ```
 ⚠️  Remote: marketplace remote has <count> commit(s) ahead of local — push may fail
-    Suggested fix: git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace pull --rebase origin main
+    Suggested fix: git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace pull --rebase origin main
 ```
 Continue regardless — user may know the remote state is acceptable. Phase 9 adds auto-recovery here.
 
@@ -545,7 +545,7 @@ Read the SKILL.md file, locate the `version:` line within the `---` delimited fr
 ```python
 import re
 
-skill_md_path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill/SKILL.md'
+skill_md_path = '/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill/SKILL.md'
 new_version = '<new-version>'
 
 content = open(skill_md_path).read()
@@ -586,7 +586,7 @@ Write back the modified content. Preserve all other frontmatter fields and all b
 ```python
 import json
 
-plugin_json_path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>/.claude-plugin/plugin.json'
+plugin_json_path = '/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/<name>/.claude-plugin/plugin.json'
 new_version = '<new-version>'
 
 with open(plugin_json_path) as f:
@@ -833,39 +833,74 @@ Phase 19 extends `/new-plugin` to scaffold both files with stubs (CLOG-05), and 
 
 **EXECUTE behaviour:**
 
-### For skills (PUB-04) — ZIP with SKILL.md at root
+### For skills (PUB-04) — ZIP with SKILL.md at root (DSYNC-01..DSYNC-07)
 
 **Critical:** Always `cd` into `claude-code-skill/` before running zip. If you run zip from outside that directory, the ZIP will contain `claude-code-skill/SKILL.md` instead of `SKILL.md` at root — Claude Desktop will fail to load the skill.
 
-```bash
-# Step 1: Rebuild the .skill ZIP
-mkdir -p /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/
-cd /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill && zip -r ../claude-desktop-skill/<name>.skill . -x "evals/*" "*.pyc" "__pycache__/*" ".DS_Store"
+Sub-steps 6a (build), 6b (verify), 6c (copy) run in order. A failure at 6a OR 6b hard-stops via D-08 Mid-Pipeline Failure BEFORE 6c. 6c only runs if 6b confirms SKILL.md at ZIP root with non-zero entries. The marketplace is never written if the local `.skill` could not be produced or verified (DSYNC-07).
 
-# Step 2: Create marketplace destination and copy .skill file
-mkdir -p /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/
-cp /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/<name>.skill /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill
+#### Sub-step 6a: Build the .skill ZIP
 
-# Step 3: Verify — SKILL.md must appear at root, NOT nested under a folder
-unzip -l /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill
-```
-
-If the verify step shows `SKILL.md` nested under a directory prefix (e.g., `claude-code-skill/SKILL.md`), the package is invalid — stop with a mid-pipeline failure (D-08).
-
-Read the file size for the output line:
+Create the desktop-skill directory if it does not already exist (DSYNC-05), `cd` into the source tree so `SKILL.md` lands at ZIP root (DSYNC-03), and rebuild the archive using the same exclusion list as every prior Stage 6 (DSYNC-02).
 
 ```bash
-ls -lh /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill | awk '{print $5}'
+mkdir -p /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/
+cd /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill && zip -r ../claude-desktop-skill/<name>.skill . -x "evals/*" "*.pyc" "__pycache__/*" ".DS_Store"
 ```
 
-After packaging, print: `✅ Packaged: <name>.skill (<size>)`
+If `zip` returns a non-zero exit code, hard-stop via D-08 Mid-Pipeline Failure (Scenario B) — do NOT run 6b or 6c.
+
+After 6a, print: `✅ Stage 6a: Packaged <name>.skill`
+
+#### Sub-step 6b: Verify .skill structure (3 facts)
+
+Parse `unzip -l` in a single pass to extract three facts: entry count, total byte size, and SKILL.md-at-root boolean (DSYNC-04). The `$NF == "SKILL.md"` structural check avoids the false-positive case where a nested `claude-code-skill/SKILL.md` entry would match a substring grep (see 24-RESEARCH §Pitfall 3).
+
+```bash
+SKILL_PATH=/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/<name>.skill
+LIST=$(unzip -l "$SKILL_PATH" 2>/dev/null)
+SIZE=$(echo "$LIST" | tail -1 | awk '{print $1}')
+ENTRIES=$(echo "$LIST" | tail -1 | awk '{print $2}')
+ROOT=$(echo "$LIST" | awk '$NF == "SKILL.md" { found=1; exit } END { print (found ? "true" : "false") }')
+
+if [ ! -f "$SKILL_PATH" ] || [ -z "$ENTRIES" ] || [ "$ENTRIES" = "0" ] || [ "$ROOT" != "true" ]; then
+  # Hard-stop: route to D-08 Mid-Pipeline Failure (Scenario B) — do NOT run 6c.
+  # See "Example for zip verification failure" below for the exact failure-block wording (DSYNC-07).
+  exit 1
+fi
+```
+
+After 6b, print: `✅ Stage 6b: Verified <name>.skill ($SIZE bytes, $ENTRIES entries, SKILL.md at root)`
+
+#### Sub-step 6c: Copy to marketplace
+
+Only reached if 6b succeeded. Mirror the verified `.skill` to the marketplace.
+
+```bash
+mkdir -p /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/skills/<name>/
+cp /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/<name>.skill /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill
+```
+
+After 6c, print: `✅ Stage 6c: Copied <name>.skill to marketplace`
+
+Read the human-readable file size for the DSYNC-06 summary line:
+
+```bash
+HUMAN_SIZE=$(ls -lh /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/<name>.skill | awk '{print $5}')
+```
+
+Then print the DSYNC-06 summary line (one line, inside the Stage 6 EXECUTE block, visible in publish output so the developer knows the `.skill` path):
+
+`✅ Desktop: /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-desktop-skill/<name>.skill ($HUMAN_SIZE, $ENTRIES entries)`
+
+After all three sub-steps, print the existing Stage 6 completion line: `✅ Packaged: <name>.skill (<size>)`
 
 ### For plugins (PUB-05) — rsync copy with exclusions
 
 **Pre-rsync cleanup:** Detect and remove any .git directories in the marketplace destination before copying. This catches contamination from prior publishes. The rsync `--exclude='.git/'` flag below prevents new contamination.
 
 ```bash
-MARKETPLACE_PLUGIN="/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/<name>"
+MARKETPLACE_PLUGIN="/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/plugins/<name>"
 
 if [ -d "$MARKETPLACE_PLUGIN" ]; then
   CONTAMINATED=$(find "$MARKETPLACE_PLUGIN" -name ".git" -type d 2>/dev/null)
@@ -890,8 +925,8 @@ rsync -a \
   --exclude='.internal-documentation/' \
   --exclude='CHANGELOG-internal.md' \
   --exclude='.DS_Store' \
-  /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>/ \
-  /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/<name>/
+  /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/<name>/ \
+  /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/plugins/<name>/
 ```
 
 After copying, print: `✅ Packaged: <name> (rsync copy)`
@@ -931,8 +966,8 @@ For plugins, use the read-parse-modify-rewrite pattern:
 ```python
 import json
 
-marketplace_json_path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/.claude-plugin/marketplace.json'
-plugin_json_path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/plugins/<name>/.claude-plugin/plugin.json'
+marketplace_json_path = '/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/.claude-plugin/marketplace.json'
+plugin_json_path = '/Users/michaeleast/Developer/resources/utilities/claude-ecosystem/plugins/<name>/.claude-plugin/plugin.json'
 name = '<plugin-name>'
 new_version = '<new-version>'
 
@@ -1058,14 +1093,14 @@ Regenerate the full marketplace README.md after every publish — it reflects th
 **Step 1: Scan marketplace for all published skills**
 
 ```bash
-ls /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/ 2>/dev/null
+ls /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/skills/ 2>/dev/null
 ```
 
 For each skill directory found, read version and description from the `.skill` ZIP:
 
 ```bash
 # Read version from .skill ZIP
-unzip -p /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill "SKILL.md" 2>/dev/null | python3 -c "
+unzip -p /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill "SKILL.md" 2>/dev/null | python3 -c "
 import re, sys
 content = sys.stdin.read()
 m = re.search(r'^---\n(.*?)^---', content, re.MULTILINE | re.DOTALL)
@@ -1077,7 +1112,7 @@ else:
 "
 
 # Read description from .skill ZIP (first sentence recommended for table cell brevity)
-unzip -p /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill "SKILL.md" 2>/dev/null | python3 -c "
+unzip -p /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/skills/<name>/<name>.skill "SKILL.md" 2>/dev/null | python3 -c "
 import re, sys
 content = sys.stdin.read()
 m = re.search(r'^---\n(.*?)^---', content, re.MULTILINE | re.DOTALL)
@@ -1095,14 +1130,14 @@ else:
 **Step 2: Scan marketplace for all published plugins**
 
 ```bash
-ls /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/ 2>/dev/null
+ls /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/plugins/ 2>/dev/null
 ```
 
 For each plugin directory found, read version and description from `.claude-plugin/plugin.json`:
 
 ```python
 import json
-d = json.load(open('/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/plugins/<name>/.claude-plugin/plugin.json'))
+d = json.load(open('/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/plugins/<name>/.claude-plugin/plugin.json'))
 version = d.get('version', '—')
 description = d.get('description', '—')
 ```
@@ -1145,7 +1180,7 @@ If there are no published skills yet, omit the Skills table rows (keep the heade
 Then apply the skip-if-unchanged guard before writing:
 
 ```python
-readme_path = '/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace/README.md'
+readme_path = '/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace/README.md'
 
 # Read existing README for comparison
 try:
@@ -1264,7 +1299,7 @@ The diff summary uses `+`, `-`, `~` prefixes for Added, Removed, Updated respect
 ### Sub-step 8a: Marketplace commit (after gate)
 
 ```bash
-MARKETPLACE=/Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace
+MARKETPLACE=/Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace
 # Stage all changes FIRST (required before STAGED_COUNT and gate prompt)
 git -C "$MARKETPLACE" add .
 STAGED_COUNT=$(git -C "$MARKETPLACE" diff --cached --name-only | wc -l | tr -d ' ')
@@ -1495,7 +1530,9 @@ The verb phrase names the concrete target: file path, command summary, or remote
 | 4 | `would write version <new-version> to <manifest-file>` |
 | 5 | `would prepend v<new-version> entry to <container>/CHANGELOG.md` |
 | 6 (plugin) | `would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, CHANGELOG-internal.md, .DS_Store) after cleaning any .git contamination in destination` |
-| 6 (skill) | `would zip claude-code-skill/ into <name>.skill and copy to <marketplace>/skills/<name>/<name>.skill` |
+| 6a (skill) | `would zip claude-code-skill/ into <skills-dir>/<name>/claude-desktop-skill/<name>.skill (excluding evals/*, *.pyc, __pycache__/*, .DS_Store)` |
+| 6b (skill) | `would verify <name>.skill with unzip -l (expect SKILL.md at root, non-zero entries)` |
+| 6c (skill) | `would copy <name>.skill to <marketplace>/skills/<name>/<name>.skill` |
 | 7a | `would update marketplace.json entry "<name>" → version <new-version>` (plugins only) |
 | 7a2 | `would update version to <new-version> in <source-readme-path> and <marketplace-readme-path>` (plugins only; skills skip — no 7a2 line printed) |
 | 7b | `would regenerate marketplace index with <name> v<new-version>` |
@@ -1525,7 +1562,7 @@ The `✔` (heavy check mark, U+2714) leads the line — `[DRY RUN]` follows the 
 | 3     | Changelog Summary Prompt    | PASS   | would prompt for user-facing summary (captured)       |
 | 4     | Write Version Bump          | PASS   | would write version <new-version> to <manifest-file>  |
 | 5     | Write CHANGELOG Entry       | PASS   | would prepend v<new-version> entry to <container>/CHANGELOG.md |
-| 6     | Package                     | PASS   | would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, CHANGELOG-internal.md, .DS_Store) after cleaning .git contamination / would zip claude-code-skill/ into <name>.skill and copy to <marketplace>/skills/<name>/<name>.skill |
+| 6     | Package                     | PASS   | would rsync <plugins-dir>/<name>/ to <marketplace>/plugins/<name>/ (excluding .git/, .planning/, .claude/, .vscode/, .idea/, .vs/, documentation/, CHANGELOG-internal.md, .DS_Store) after cleaning .git contamination / would zip claude-code-skill/ into <name>.skill (6a), verify SKILL.md at root via unzip -l (6b), then copy to <marketplace>/skills/<name>/<name>.skill (6c) |
 | 7     | Copy to Marketplace + Index | PASS   | would update marketplace.json, update README version, and regenerate index with <name> v<new-version> |
 | 8     | Git Commit and Push         | PASS   | would commit marketplace, tag source repo v<new-version>, push to origin/main |
 ```
@@ -1572,8 +1609,8 @@ Push to GitHub? (y/N)
 **Your changes are safe** — version bump, changelog, and marketplace files are saved locally. Nothing was lost.
 
 **To push later:** Run these commands in your terminal:
-  git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace commit -m "publish: <name> v<new-version> — <summary>"
-  git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace push origin main
+  git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace commit -m "publish: <name> v<new-version> — <summary>"
+  git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace push origin main
 ```
 
 Note: `git add .` has already run before the gate prompt, so the abort recovery only needs commit + push.
@@ -1624,20 +1661,21 @@ Then three plain-language sections:
 **To fix:** <specific recovery command or action>
 ```
 
-**Example for zip verification failure:**
+**Example for zip verification failure at sub-step 6b:**
 
 ```
 ✅ Validation passed
 ✅ Version bumped: 2 → 3
 ✅ CHANGELOG.md updated
-❌ Package verification failed
+✅ Stage 6a: Packaged <name>.skill
+❌ Stage 6b: Package verification failed
 
-**What happened:** The ZIP file was created but SKILL.md is nested under a folder instead of at the root. Claude Desktop will not be able to load this skill.
+**What happened:** The ZIP file was created but SKILL.md is nested under a folder instead of at the root. Claude Desktop will not be able to load this skill. The marketplace was not written (sub-step 6c was skipped).
 
 **Your changes are safe** — the version bump and changelog entry are saved locally. Nothing was lost.
 
 **To fix:** Run this command in your terminal:
-  cd /Users/michaeleast/Documents/claude-code-development/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill && zip -r ../claude-desktop-skill/<name>.skill . -x "evals/*" "*.pyc" "__pycache__/*" ".DS_Store"
+  cd /Users/michaeleast/Developer/resources/utilities/claude-ecosystem/skills/<name>/claude-code-skill && zip -r ../claude-desktop-skill/<name>.skill . -x "evals/*" "*.pyc" "__pycache__/*" ".DS_Store"
 ```
 
 ---
@@ -1651,14 +1689,14 @@ Triggered when `git push` returns a non-zero exit code.
 Attempt exactly one pull-rebase cycle:
 1. Print: `Push failed — attempting auto-recovery`
 2. Print: `Pulling latest from origin/main...`
-3. Run: `git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace pull --rebase origin main`
+3. Run: `git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace pull --rebase origin main`
 4. If rebase succeeds (exit code 0):
    - Print: `Rebase succeeded — retrying push`
-   - Run: `git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace push origin main`
+   - Run: `git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace push origin main`
    - If retry push succeeds: continue to success path (✅ + ✔ + verification nudge)
    - If retry push fails: fall through to Tier 2
 5. If rebase fails (exit code non-zero):
-   - Run IMMEDIATELY: `git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace rebase --abort`
+   - Run IMMEDIATELY: `git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace rebase --abort`
    - Print: `Rebase aborted — marketplace repo restored to clean state`
    - Fall through to Tier 2 with rebase-failed wording
 
@@ -1675,7 +1713,7 @@ Show all completed stages with ✅, then show the appropriate message:
 **Your changes are safe** — all local writes are preserved. The commit exists locally. Nothing was lost.
 
 **To fix:** Run this command in your terminal:
-  git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace push origin main
+  git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace push origin main
 ```
 
 **Case B — Rebase conflict (rebase itself failed):**
@@ -1687,9 +1725,9 @@ Show all completed stages with ✅, then show the appropriate message:
 **Your changes are safe** — all local writes are preserved. Nothing was lost.
 
 **To fix:** Manually pull and resolve conflicts, then push:
-  git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace pull --rebase origin main
+  git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace pull --rebase origin main
   # resolve any conflicts
-  git -C /Users/michaeleast/Documents/claude-code-development/resources/utilities/mikey-skills-marketplace push origin main
+  git -C /Users/michaeleast/Developer/resources/utilities/mikey-skills-marketplace push origin main
 ```
 
 Do NOT attempt rollback of local changes. Do NOT attempt more than one auto-recovery cycle.
