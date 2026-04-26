@@ -17,9 +17,12 @@
     },
     {
       "name": "interview-research-plugin",
-      "source": "./plugins/interview-research-plugin",
+      "source": {
+        "source": "github",
+        "repo": "8bit-ginge/interview-research"
+      },
       "description": "Adaptive discovery interview for exploring ideas through structured conversation",
-      "version": "1.0.0"
+      "version": "0.1.0"
     },
     {
       "name": "skill-forge-plugin",
